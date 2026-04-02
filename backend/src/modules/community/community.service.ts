@@ -5,6 +5,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class CommunityService {
   constructor(private prisma: PrismaService) {}
 
+  private mapCommunity(c: any, myRole?: string | null) {
+    return {
+      ...c,
+      field: c.subjectFilter || 'General',
+      myRole: myRole ?? null,
+    };
+  }
+
   async findAll(userId: string) {
     const communities = await this.prisma.community.findMany({
       where: { isPublic: true },
@@ -16,7 +24,7 @@ export class CommunityService {
       select: { communityId: true, role: true },
     });
     const memberMap = Object.fromEntries(memberships.map(m => [m.communityId, m.role]));
-    return communities.map(c => ({ ...c, myRole: memberMap[c.id] ?? null }));
+    return communities.map(c => this.mapCommunity(c, memberMap[c.id]));
   }
 
   async findMy(userId: string) {
@@ -24,7 +32,7 @@ export class CommunityService {
       where: { userId },
       include: { community: true },
     });
-    return memberships.map(m => ({ ...m.community, myRole: m.role }));
+    return memberships.map(m => this.mapCommunity(m.community, m.role));
   }
 
   async create(userId: string, data: { name: string; description?: string; isPublic?: boolean; schoolFilter?: string; subjectFilter?: string }) {
@@ -34,7 +42,7 @@ export class CommunityService {
     await this.prisma.communityMember.create({
       data: { communityId: community.id, userId, role: 'ADMIN' },
     });
-    return community;
+    return this.mapCommunity(community, 'ADMIN');
   }
 
   async findOne(id: string) {
@@ -43,7 +51,7 @@ export class CommunityService {
       include: { members: { include: { user: { select: { id: true, name: true } } }, take: 10 } },
     });
     if (!community) throw new NotFoundException('Community not found');
-    return community;
+    return this.mapCommunity(community);
   }
 
   async join(communityId: string, userId: string) {

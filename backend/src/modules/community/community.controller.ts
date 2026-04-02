@@ -23,7 +23,12 @@ export class CommunityController {
 
   @Post()
   create(@CurrentUser('id') userId: string, @Body() body: { name: string; description?: string; field?: string; isPrivate?: boolean }) {
-    return this.communityService.create(userId, { ...body, isPublic: !body.isPrivate });
+    return this.communityService.create(userId, {
+      name: body.name,
+      description: body.description,
+      isPublic: !body.isPrivate,
+      subjectFilter: body.field,
+    });
   }
 
   @Get(':id')
