@@ -1,0 +1,159 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { useDropzone } from 'react-dropzone';
+import { Upload, FileText, Image, Mic, Search, Trash2, ChevronRight, Clock } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+
+type NoteStatus = 'pending' | 'processing' | 'done' | 'failed';
+
+interface NoteCard {
+  id: string;
+  title: string;
+  fileType: string;
+  status: NoteStatus;
+  masteryLevel: number;
+  createdAt: Date;
+  summary?: string;
+}
+
+const MOCK_NOTES: NoteCard[] = [
+  { id: '1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', status: 'done', masteryLevel: 3, createdAt: new Date(Date.now() - 2 * 86400000), summary: 'Covers dopamine pathways, antipsychotics, and mood stabilizers' },
+  { id: '2', title: 'Anatomy Notes — Week 4', fileType: 'IMAGE', status: 'done', masteryLevel: 1, createdAt: new Date(Date.now() - 86400000), summary: 'Upper limb musculature and brachial plexus' },
+  { id: '3', title: 'Voice note — Cardiology', fileType: 'VOICE', status: 'processing', masteryLevel: 0, createdAt: new Date(Date.now() - 3600000) },
+];
+
+const fileTypeIcon: Record<string, React.ReactNode> = {
+  PDF: <FileText size={16} className="text-red-500" />,
+  IMAGE: <Image size={16} className="text-blue-500" />,
+  VOICE: <Mic size={16} className="text-green-500" />,
+  TEXT: <FileText size={16} className="text-zinc-500" />,
+};
+
+const masteryColors = ['bg-zinc-200', 'bg-red-300', 'bg-orange-300', 'bg-yellow-300', 'bg-lime-400', 'bg-emerald-400'];
+const masteryLabels = ['Untested', 'Just started', 'Learning', 'Getting there', 'Almost mastered', 'Mastered'];
+
+export default function SlidesPage() {
+  const [notes, setNotes] = useState<NoteCard[]>(MOCK_NOTES);
+  const [search, setSearch] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setIsUploading(true);
+    setTimeout(() => {
+      const newNotes = acceptedFiles.map(f => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: f.name.replace(/\.[^/.]+$/, ''),
+        fileType: f.name.endsWith('.pdf') ? 'PDF' : f.type.startsWith('audio') ? 'VOICE' : 'IMAGE',
+        status: 'processing' as NoteStatus,
+        masteryLevel: 0,
+        createdAt: new Date(),
+      }));
+      setNotes(prev => [...newNotes, ...prev]);
+      setIsUploading(false);
+    }, 1500);
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'], 'image/*': ['.jpg', '.jpeg', '.png', '.webp'], 'audio/*': ['.mp3', '.m4a', '.wav'] },
+    maxSize: 20 * 1024 * 1024,
+  });
+
+  const filtered = notes.filter(n => n.title.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="px-4 py-4 space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-zinc-900">My Slides</h1>
+        <p className="text-sm text-zinc-500">Upload notes and Buddi will help you master them</p>
+      </div>
+
+      {/* Upload zone */}
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition ${
+          isDragActive ? 'border-brand-400 bg-brand-50' : 'border-zinc-200 hover:border-brand-300 hover:bg-zinc-50'
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="flex flex-col items-center gap-2">
+          {isUploading ? (
+            <div className="w-10 h-10 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center">
+              <Upload size={20} className="text-brand-500" />
+            </div>
+          )}
+          <div>
+            <p className="text-sm font-semibold text-zinc-700">{isDragActive ? 'Drop it here!' : 'Upload slides or notes'}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">PDFs, images, voice notes · Max 20MB</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search your notes..."
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+        />
+      </div>
+
+      {/* Notes grid */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-4xl mb-3">📚</p>
+          <p className="text-zinc-600 font-medium">No notes yet</p>
+          <p className="text-zinc-400 text-sm mt-1">Upload your first slide to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((note, i) => (
+            <motion.div
+              key={note.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card flex items-center gap-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center shrink-0">
+                {fileTypeIcon[note.fileType] || <FileText size={16} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-zinc-800 truncate">{note.title}</p>
+                {note.summary && <p className="text-xs text-zinc-400 truncate mt-0.5">{note.summary}</p>}
+                <div className="flex items-center gap-2 mt-1.5">
+                  {note.status === 'processing' ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Processing
+                    </span>
+                  ) : note.status === 'failed' ? (
+                    <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded-full">Failed</span>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full ${masteryColors[note.masteryLevel]}`} />
+                      <span className="text-xs text-zinc-400">{masteryLabels[note.masteryLevel]}</span>
+                    </div>
+                  )}
+                  <span className="text-xs text-zinc-300">·</span>
+                  <span className="text-xs text-zinc-400 flex items-center gap-1">
+                    <Clock size={10} />{formatDistanceToNow(note.createdAt, { addSuffix: true })}
+                  </span>
+                </div>
+              </div>
+              <button className="text-zinc-300 hover:text-zinc-500 shrink-0">
+                <ChevronRight size={18} />
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

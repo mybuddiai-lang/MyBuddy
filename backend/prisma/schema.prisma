@@ -1,0 +1,383 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "extensions"), uuid_ossp(map: "uuid-ossp", schema: "extensions")]
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+  INSTITUTIONAL
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum FileType {
+  PDF
+  IMAGE
+  VOICE
+  TEXT
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  COMPLETED
+  SKIPPED
+}
+
+enum ReminderType {
+  RECALL
+  STUDY
+  BREAK
+  EXAM
+}
+
+enum RecallResult {
+  CORRECT
+  PARTIAL
+  INCORRECT
+}
+
+enum CommunityRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYSTACK
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String           @unique
+  name              String
+  passwordHash      String
+  whatsappNumber    String?
+  school            String?
+  department        String?
+  specialization    String?
+  examDate          DateTime?
+  subscriptionTier  SubscriptionTier @default(FREE)
+  sentimentBaseline Float            @default(0.5)
+  resilienceScore   Float            @default(50.0)
+  studyStreak       Int              @default(0)
+  role              UserRole         @default(USER)
+  lastActiveAt      DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  profile         UserProfile?
+  refreshTokens   RefreshToken[]
+  chatMessages    ChatMessage[]
+  notes           Note[]
+  reminders       Reminder[]
+  recallSessions  RecallSession[]
+  communityPosts  CommunityPost[]
+  memberships     CommunityMember[]
+  payments        Payment[]
+  subscription    Subscription?
+  analyticsEvents AnalyticsEvent[]
+  adminAlerts     AdminAlert[]
+
+  @@index([email])
+  @@index([subscriptionTier])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserProfile {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @unique @db.Uuid
+  avatarUrl            String?
+  bio                  String?
+  timezone             String   @default("UTC")
+  notificationsEnabled Boolean  @default(true)
+  studyGoalHours       Int      @default(4)
+  weeklyGoalCards      Int      @default(20)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model ChatMessage {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String      @db.Uuid
+  role           MessageRole
+  content        String
+  sentimentScore Float?
+  tokenCount     Int         @default(0)
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+model Note {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String           @db.Uuid
+  title            String
+  originalFilename String?
+  fileUrl          String?
+  fileType         FileType         @default(TEXT)
+  processingStatus ProcessingStatus @default(PENDING)
+  summary          String?
+  content          String?
+  vectorId         String?
+  masteryLevel     Int              @default(0)
+  pageCount        Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks    NoteChunk[]
+  reminders Reminder[]
+
+  @@index([userId, createdAt])
+  @@index([processingStatus])
+  @@map("notes")
+}
+
+model NoteChunk {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noteId     String   @db.Uuid
+  content    String
+  chunkIndex Int
+  vectorId   String?
+  createdAt  DateTime @default(now())
+
+  note        Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  recallCards RecallCard[]
+
+  @@index([noteId])
+  @@map("note_chunks")
+}
+
+model Reminder {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String         @db.Uuid
+  noteId          String?        @db.Uuid
+  title           String
+  description     String?
+  scheduledFor    DateTime
+  completedAt     DateTime?
+  difficultyLevel Int            @default(1)
+  status          ReminderStatus @default(PENDING)
+  type            ReminderType   @default(RECALL)
+  createdAt       DateTime       @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note Note? @relation(fields: [noteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, scheduledFor])
+  @@index([status, scheduledFor])
+  @@map("reminders")
+}
+
+model RecallSession {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @db.Uuid
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  cardsReviewed  Int       @default(0)
+  correctAnswers Int       @default(0)
+  sessionType    String    @default("standard")
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards RecallCard[]
+
+  @@index([userId])
+  @@map("recall_sessions")
+}
+
+model RecallCard {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId       String        @db.Uuid
+  noteChunkId     String        @db.Uuid
+  question        String
+  answer          String
+  userAnswer      String?
+  result          RecallResult?
+  difficultyRating Int?
+  reviewedAt      DateTime?
+
+  session   RecallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  noteChunk NoteChunk     @relation(fields: [noteChunkId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("recall_cards")
+}
+
+model Community {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  description   String?
+  createdBy     String   @db.Uuid
+  memberCount   Int      @default(1)
+  isPublic      Boolean  @default(true)
+  schoolFilter  String?
+  subjectFilter String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members CommunityMember[]
+  posts   CommunityPost[]
+
+  @@index([isPublic])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId String        @db.Uuid
+  userId      String        @db.Uuid
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@map("community_members")
+}
+
+model CommunityPost {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId  String   @db.Uuid
+  authorId     String   @db.Uuid
+  content      String
+  attachmentUrl String?
+  likesCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([communityId, createdAt])
+  @@map("community_posts")
+}
+
+model Payment {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @db.Uuid
+  amount            Int
+  currency          String          @default("USD")
+  provider          PaymentProvider
+  providerPaymentId String?
+  status            PaymentStatus   @default(PENDING)
+  planType          String
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription?
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Subscription {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @unique @db.Uuid
+  planType   String
+  status     String   @default("active")
+  startedAt  DateTime @default(now())
+  expiresAt  DateTime
+  autoRenew  Boolean  @default(true)
+  paymentId  String?  @unique @db.Uuid
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?  @db.Uuid
+  eventType  String
+  eventData  Json?
+  sessionId  String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@map("analytics_events")
+}
+
+model AdminAlert {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        String
+  severity    AlertSeverity @default(LOW)
+  title       String
+  description String?
+  userId      String?       @db.Uuid
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([severity, resolvedAt])
+  @@map("admin_alerts")
+}
