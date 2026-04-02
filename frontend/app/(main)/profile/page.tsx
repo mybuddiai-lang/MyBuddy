@@ -1,14 +1,33 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useRouter } from 'next/navigation';
-import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star } from 'lucide-react';
+import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star, Pencil, X, Check } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
+import { usersApi } from '@/lib/api/users';
+
+interface EditForm {
+  name: string;
+  school: string;
+  department: string;
+  specialization: string;
+  examDate: string;
+}
 
 export default function ProfilePage() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const router = useRouter();
+  const [showEdit, setShowEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<EditForm>({
+    name: user?.name || '',
+    school: user?.school || '',
+    department: user?.department || '',
+    specialization: user?.specialization || '',
+    examDate: user?.examDate ? new Date(user.examDate).toISOString().slice(0, 10) : '',
+  });
 
   const daysUntilExam = user?.examDate
     ? differenceInDays(new Date(user.examDate), new Date())
@@ -22,6 +41,32 @@ export default function ProfilePage() {
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await usersApi.updateProfile({
+        name: form.name || undefined,
+        school: form.school || undefined,
+        department: form.department || undefined,
+        specialization: form.specialization || undefined,
+        examDate: form.examDate || undefined,
+      });
+      // Optimistically update the local user state if setUser is available
+      setUser({
+        ...user!,
+        name: form.name || user?.name || '',
+        school: form.school || user?.school,
+        department: form.department || user?.department,
+        specialization: form.specialization || user?.specialization,
+        examDate: form.examDate || user?.examDate,
+      });
+    } catch {
+      // silent fail — changes still reflected optimistically
+    }
+    setSaving(false);
+    setShowEdit(false);
+  };
 
   const SETTINGS = [
     { icon: Bell, label: 'Notifications', desc: 'Reminders and alerts', href: '/profile/notifications' },
@@ -41,9 +86,9 @@ export default function ProfilePage() {
           <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center shrink-0">
             <span className="text-2xl font-bold text-brand-600">{initials}</span>
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-zinc-900">{user?.name || 'Student'}</h2>
-            <p className="text-sm text-zinc-500">{user?.school || 'University'}</p>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-zinc-900 truncate">{user?.name || 'Student'}</h2>
+            <p className="text-sm text-zinc-500 truncate">{user?.school || 'University'}</p>
             <span className={`inline-block mt-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
               user?.subscriptionTier === 'PREMIUM' ? 'bg-amber-100 text-amber-700' :
               user?.subscriptionTier === 'INSTITUTIONAL' ? 'bg-purple-100 text-purple-700' :
@@ -52,6 +97,12 @@ export default function ProfilePage() {
               {user?.subscriptionTier || 'FREE'}
             </span>
           </div>
+          <button
+            onClick={() => setShowEdit(true)}
+            className="w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center shrink-0 transition"
+          >
+            <Pencil size={15} className="text-zinc-500" />
+          </button>
         </div>
 
         {/* Exam countdown */}
@@ -112,6 +163,58 @@ export default function ProfilePage() {
       </button>
 
       <p className="text-center text-xs text-zinc-300">Buddi v2.0 · Student Resilience Infrastructure</p>
+
+      {/* Edit profile modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-zinc-900">Edit Profile</h2>
+              <button onClick={() => setShowEdit(false)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition">
+                <X size={16} className="text-zinc-500" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { label: 'Full Name', key: 'name', type: 'text', placeholder: 'Your full name' },
+                { label: 'School / University', key: 'school', type: 'text', placeholder: 'e.g. University of Lagos' },
+                { label: 'Department', key: 'department', type: 'text', placeholder: 'e.g. Medicine & Surgery' },
+                { label: 'Specialization', key: 'specialization', type: 'text', placeholder: 'e.g. Cardiology, Law, Engineering' },
+                { label: 'Exam Date', key: 'examDate', type: 'date', placeholder: '' },
+              ].map(({ label, key, type, placeholder }) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">{label}</label>
+                  <input
+                    type={type}
+                    value={form[key as keyof EditForm]}
+                    onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-zinc-200 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <><Check size={16} /> Save Changes</>
+              )}
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

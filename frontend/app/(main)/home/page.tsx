@@ -2,9 +2,10 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, CheckCircle } from 'lucide-react';
+import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useStats } from '@/lib/hooks/use-stats';
+import { useReminders } from '@/lib/hooks/use-reminders';
 import { differenceInDays } from 'date-fns';
 
 const QUOTES = [
@@ -17,11 +18,6 @@ const QUOTES = [
   "Your future self is watching. Make them proud.",
 ];
 
-const DUMMY_REMINDERS = [
-  { id: '1', title: 'Review: Pharmacology — CNS Drugs', type: 'RECALL', minutesAgo: 0, dueLabel: 'Due now' },
-  { id: '2', title: 'Review: Anatomy Notes — Week 4', type: 'RECALL', minutesAgo: 0, dueLabel: 'Due in 2h' },
-];
-
 const DUMMY_ACTIVITY = [
   { id: '1', icon: '🧠', text: 'Completed 3 recall cards', time: '1h ago' },
   { id: '2', icon: '📄', text: 'Uploaded Cardiology notes', time: '3h ago' },
@@ -31,6 +27,7 @@ const DUMMY_ACTIVITY = [
 export default function HomePage() {
   const { user } = useAuthStore();
   const { stats } = useStats();
+  const { dueReminders } = useReminders();
 
   const quote = QUOTES[new Date().getDay() % QUOTES.length];
   const daysUntilExam = user?.examDate ? differenceInDays(new Date(user.examDate), new Date()) : null;
@@ -90,7 +87,7 @@ export default function HomePage() {
       </div>
 
       {/* Due reminders */}
-      {DUMMY_REMINDERS.length > 0 && (
+      {dueReminders.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -100,7 +97,7 @@ export default function HomePage() {
             <Link href="/recall" className="text-xs text-brand-600 font-medium">See all</Link>
           </div>
           <div className="space-y-2">
-            {DUMMY_REMINDERS.map((r, i) => (
+            {dueReminders.slice(0, 3).map((r, i) => (
               <motion.div
                 key={r.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -116,7 +113,9 @@ export default function HomePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-800 truncate">{r.title}</p>
-                    <p className="text-xs text-zinc-400">{r.dueLabel}</p>
+                    <p className="text-xs text-zinc-400">
+                      {new Date(r.scheduledAt) <= new Date() ? 'Due now' : 'Due soon'}
+                    </p>
                   </div>
                   <ChevronRight size={14} className="text-zinc-300 shrink-0" />
                 </Link>

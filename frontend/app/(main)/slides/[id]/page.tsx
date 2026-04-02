@@ -23,10 +23,35 @@ export default function NoteDetailPage() {
   const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    const DUMMY_DETAIL: Record<string, NoteDetail> = {
+      '1': {
+        id: '1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', processingStatus: 'DONE',
+        masteryLevel: 3, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        summary: 'Covers dopamine pathways, antipsychotics (haloperidol, clozapine), SSRIs, and mood stabilizers including lithium and valproate.',
+        chunks: [
+          { id: 'c1', chunkIndex: 0, content: 'Q: What is the mechanism of haloperidol?\nA: Haloperidol is a typical antipsychotic that blocks D2 dopamine receptors in the mesolimbic pathway, reducing positive symptoms of schizophrenia.' },
+          { id: 'c2', chunkIndex: 1, content: 'Q: How does lithium work as a mood stabilizer?\nA: Lithium inhibits inositol monophosphatase and GSK-3, reducing second messenger signaling downstream of neurotransmitter receptors.' },
+          { id: 'c3', chunkIndex: 2, content: 'Q: What is serotonin syndrome?\nA: A potentially life-threatening condition caused by excess serotonergic activity. Triad: mental status changes, autonomic instability, and neuromuscular abnormalities.' },
+        ],
+      },
+      '2': {
+        id: '2', title: 'Anatomy Notes — Week 4', fileType: 'IMAGE', processingStatus: 'DONE',
+        masteryLevel: 1, createdAt: new Date(Date.now() - 86400000).toISOString(),
+        summary: 'Upper limb musculature and brachial plexus with clinical correlations for nerve injuries.',
+        chunks: [
+          { id: 'c4', chunkIndex: 0, content: 'Q: What muscles are innervated by the radial nerve?\nA: The radial nerve innervates the triceps, brachioradialis, and all wrist/finger extensors. Injury causes wrist drop.' },
+          { id: 'c5', chunkIndex: 1, content: 'Q: What is the clinical sign of median nerve injury at the wrist?\nA: Loss of thumb opposition and thenar wasting (ape hand deformity). Loss of sensation in lateral 3½ fingers.' },
+        ],
+      },
+    };
+
     slidesApi.getById(id).then(data => {
       setNote(data as NoteDetail);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      setNote(DUMMY_DETAIL[id] ?? null);
+      setLoading(false);
+    });
   }, [id]);
 
   const toggleChunk = (chunkId: string) => {

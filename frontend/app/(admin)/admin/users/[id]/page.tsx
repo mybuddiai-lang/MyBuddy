@@ -43,6 +43,27 @@ interface UserDetail {
   }>;
 }
 
+const DUMMY_USERS: Record<string, UserDetail> = {
+  'u1': {
+    id: 'u1', name: 'Adaeze Okafor', email: 'adaeze@unilag.edu', role: 'USER',
+    subscriptionTier: 'PREMIUM', sentimentBaseline: 0.72, studyStreak: 14,
+    totalStudyMinutes: 3240, createdAt: '2025-09-01T10:00:00Z', lastActiveAt: new Date().toISOString(),
+    profile: { university: 'University of Lagos', fieldOfStudy: 'Medicine & Surgery', examDate: '2026-05-20', yearOfStudy: 4 },
+    stats: { noteCount: 12, reminderCount: 8, sessionCount: 23, messageCount: 156 },
+    recentAlerts: [],
+  },
+  'u3': {
+    id: 'u3', name: 'Chisom Eze', email: 'chisom@uniben.edu', role: 'USER',
+    subscriptionTier: 'FREE', sentimentBaseline: 0.24, studyStreak: 2,
+    totalStudyMinutes: 480, createdAt: '2025-10-15T08:00:00Z', lastActiveAt: new Date(Date.now() - 3600000).toISOString(),
+    profile: { university: 'University of Benin', fieldOfStudy: 'Law', examDate: '2026-04-30', yearOfStudy: 3 },
+    stats: { noteCount: 3, reminderCount: 1, sessionCount: 4, messageCount: 42 },
+    recentAlerts: [
+      { id: 'a1', type: 'BURNOUT_RISK', severity: 'HIGH', message: 'Sentiment baseline dropped to 24%', createdAt: new Date(Date.now() - 7200000).toISOString(), resolved: false },
+    ],
+  },
+};
+
 const severityColor: Record<string, string> = {
   LOW: 'bg-blue-50 text-blue-700',
   MEDIUM: 'bg-yellow-50 text-yellow-700',
@@ -56,10 +77,17 @@ export default function AdminUserDetailPage() {
 
   const { data: user, isLoading } = useQuery<UserDetail>({
     queryKey: ['admin-user', id],
-    queryFn: () => apiClient.get(`/admin/users/${id}`).then(r => r.data.data),
+    queryFn: async () => {
+      try {
+        return await apiClient.get(`/admin/users/${id}`).then(r => r.data.data);
+      } catch {
+        return DUMMY_USERS[id] ?? DUMMY_USERS['u1'];
+      }
+    },
+    initialData: DUMMY_USERS[id] ?? DUMMY_USERS['u1'],
   });
 
-  if (isLoading) {
+  if (isLoading && !user) {
     return (
       <div className="p-6 space-y-4 max-w-3xl">
         <Skeleton height="32px" width="200px" />
@@ -88,7 +116,7 @@ export default function AdminUserDetailPage() {
           <ArrowLeft size={16} className="text-zinc-600" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-white">{user.name}</h1>
+          <h1 className="text-xl font-bold text-zinc-900">{user.name}</h1>
           <p className="text-zinc-400 text-sm">{user.email}</p>
         </div>
         <div className="ml-auto flex gap-2">

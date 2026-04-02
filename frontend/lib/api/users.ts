@@ -9,7 +9,19 @@ export interface UserStats {
   resilienceScore: number;
 }
 
+export interface UpdateProfileDto {
+  name?: string;
+  school?: string;
+  department?: string;
+  specialization?: string;
+  examDate?: string;
+}
+
 export const usersApi = {
+  async updateProfile(dto: UpdateProfileDto): Promise<void> {
+    await apiClient.put('/users/profile', dto);
+  },
+
   async getStats(): Promise<UserStats> {
     const { data } = await apiClient.get('/users/stats');
     return data.data;

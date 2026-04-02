@@ -1,71 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RotateCcw, ChevronRight, Brain, Flame, BookOpen } from 'lucide-react';
+import { useRecall } from '@/lib/hooks/use-recall';
 import { useStats } from '@/lib/hooks/use-stats';
-
-interface FlashCard {
-  id: string;
-  question: string;
-  answer: string;
-  source: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-const ALL_CARDS: FlashCard[] = [
-  { id: '1', question: 'What is the mechanism of action of metformin?', answer: 'Metformin primarily inhibits hepatic gluconeogenesis by activating AMPK, which decreases mTOR signaling and reduces glucose production. It also improves insulin sensitivity in peripheral tissues and may alter gut microbiota.', source: 'Pharmacology — CNS Drugs', difficulty: 'medium' },
-  { id: '2', question: 'What are the key branches of the brachial plexus?', answer: 'The brachial plexus has 5 roots (C5–T1), 3 trunks (superior, middle, inferior), 6 divisions, 3 cords (lateral, medial, posterior), and 5 terminal branches: musculocutaneous, median, ulnar, radial, and axillary nerves.', source: 'Anatomy Notes — Week 4', difficulty: 'hard' },
-  { id: '3', question: 'Define the Frank-Starling law of the heart', answer: 'The Frank-Starling law states that stroke volume increases in response to an increase in end-diastolic volume (greater stretch of ventricular walls), enabling the heart to match its output to venous return.', source: 'Cardiology', difficulty: 'medium' },
-  { id: '4', question: 'What is the difference between Type I and Type II errors?', answer: 'Type I error (α) = false positive — rejecting a true null hypothesis. Type II error (β) = false negative — failing to reject a false null hypothesis. Power = 1 - β.', source: 'Biostatistics', difficulty: 'easy' },
-  { id: '5', question: 'List the layers of the epidermis from deep to superficial', answer: 'From deep to superficial: Stratum Basale → Stratum Spinosum → Stratum Granulosum → Stratum Lucidum (palms/soles only) → Stratum Corneum. Mnemonic: "Bastards Smell Great Lots of Crabs."', source: 'Histology', difficulty: 'easy' },
-  { id: '6', question: 'What triggers the release of ADH (vasopressin)?', answer: 'ADH is released by the posterior pituitary in response to: (1) increased plasma osmolality (detected by hypothalamic osmoreceptors) and (2) decreased blood volume/pressure (detected by baroreceptors). Stress, nausea, and pain also stimulate release.', source: 'Physiology — Renal', difficulty: 'hard' },
-  { id: '7', question: 'What is the central dogma of molecular biology?', answer: 'DNA → (Transcription) → mRNA → (Translation) → Protein. Reverse transcription (RNA → DNA) occurs in retroviruses. Some RNA viruses bypass DNA entirely.', source: 'Molecular Biology', difficulty: 'easy' },
-  { id: '8', question: 'What are the classic features of Cushing\'s syndrome?', answer: 'Central obesity (buffalo hump, moon face), purple striae, proximal muscle weakness, hypertension, hyperglycemia, osteoporosis, hirsutism, thin skin, and easy bruising. Caused by prolonged cortisol excess.', source: 'Endocrinology', difficulty: 'medium' },
-];
 
 export default function RecallPage() {
   const { stats } = useStats();
-  const [cards] = useState<FlashCard[]>(ALL_CARDS);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const {
+    sessionState,
+    cards,
+    currentCard,
+    currentIndex,
+    totalCards,
+    scores,
+    loadCards,
+    startSession,
+    submitAnswer,
+    reset,
+  } = useRecall();
   const [isFlipped, setIsFlipped] = useState(false);
-  const [sessionDone, setSessionDone] = useState(false);
-  const [scores, setScores] = useState({ correct: 0, partial: 0, incorrect: 0 });
-  const [sessionStarted, setSessionStarted] = useState(false);
 
-  const current = cards[currentIndex];
-  const progress = sessionStarted ? (currentIndex / cards.length) * 100 : 0;
   const studyStreak = stats.studyStreak ?? 5;
+  const progress = totalCards > 0 ? (currentIndex / totalCards) * 100 : 0;
 
-  const handleRate = (rating: 'easy' | 'medium' | 'hard') => {
-    setScores(prev => ({
-      ...prev,
-      correct: rating === 'easy' ? prev.correct + 1 : prev.correct,
-      partial: rating === 'medium' ? prev.partial + 1 : prev.partial,
-      incorrect: rating === 'hard' ? prev.incorrect + 1 : prev.incorrect,
-    }));
+  useEffect(() => {
+    loadCards();
+  }, [loadCards]);
+
+  const handleRate = async (rating: 'easy' | 'medium' | 'hard') => {
     setIsFlipped(false);
-    setTimeout(() => {
-      if (currentIndex < cards.length - 1) {
-        setCurrentIndex(i => i + 1);
-      } else {
-        setSessionDone(true);
-      }
-    }, 300);
+    setTimeout(() => submitAnswer(rating), 300);
   };
 
-  const handleRestart = () => {
-    setCurrentIndex(0);
-    setIsFlipped(false);
-    setSessionDone(false);
-    setScores({ correct: 0, partial: 0, incorrect: 0 });
-    setSessionStarted(true);
+  const handleRestart = async () => {
+    reset();
+    await loadCards();
   };
+
+  // Loading
+  if (sessionState === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Session complete screen
-  if (sessionDone) {
+  if (sessionState === 'complete') {
     const total = scores.correct + scores.partial + scores.incorrect;
-    const accuracy = Math.round((scores.correct / total) * 100);
+    const accuracy = total > 0 ? Math.round((scores.correct / total) * 100) : 0;
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -119,7 +105,7 @@ export default function RecallPage() {
   }
 
   // Pre-session start screen
-  if (!sessionStarted) {
+  if (sessionState === 'idle' || sessionState === 'ready') {
     return (
       <div className="px-4 py-4 flex flex-col gap-4">
         <div>
@@ -158,7 +144,7 @@ export default function RecallPage() {
                 }`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-zinc-700 truncate">{card.question}</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">{card.source}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{card.source || 'Your notes'}</p>
                 </div>
               </motion.div>
             ))}
@@ -169,8 +155,9 @@ export default function RecallPage() {
         </div>
 
         <button
-          onClick={() => setSessionStarted(true)}
-          className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-4 rounded-xl transition shadow-soft flex items-center justify-center gap-2 text-sm"
+          onClick={startSession}
+          disabled={cards.length === 0}
+          className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-zinc-200 text-white font-semibold py-4 rounded-xl transition shadow-soft flex items-center justify-center gap-2 text-sm"
         >
           <Brain size={18} /> Start Session ({cards.length} cards)
         </button>
@@ -182,6 +169,9 @@ export default function RecallPage() {
     );
   }
 
+  // Active session
+  if (!currentCard) return null;
+
   return (
     <div className="px-4 py-4 flex flex-col gap-4">
       {/* Stats */}
@@ -189,14 +179,14 @@ export default function RecallPage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5 text-sm">
             <Brain size={16} className="text-brand-500" />
-            <span className="font-semibold text-zinc-700">{cards.length - currentIndex} left</span>
+            <span className="font-semibold text-zinc-700">{totalCards - currentIndex} left</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm">
             <Flame size={16} className="text-orange-500" />
             <span className="font-semibold text-zinc-700">{studyStreak} day streak</span>
           </div>
         </div>
-        <span className="text-sm text-zinc-400">{currentIndex + 1} / {cards.length}</span>
+        <span className="text-sm text-zinc-400">{currentIndex + 1} / {totalCards}</span>
       </div>
 
       {/* Progress bar */}
@@ -212,19 +202,21 @@ export default function RecallPage() {
       {/* Source tag */}
       <div className="flex items-center gap-2">
         <BookOpen size={13} className="text-zinc-400" />
-        <span className="text-xs text-zinc-400">{current.source}</span>
-        <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-          current.difficulty === 'easy' ? 'bg-emerald-50 text-emerald-600' :
-          current.difficulty === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
-        }`}>
-          {current.difficulty}
-        </span>
+        <span className="text-xs text-zinc-400">{currentCard.source || 'Your notes'}</span>
+        {currentCard.difficulty && (
+          <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+            currentCard.difficulty === 'easy' ? 'bg-emerald-50 text-emerald-600' :
+            currentCard.difficulty === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+          }`}>
+            {currentCard.difficulty}
+          </span>
+        )}
       </div>
 
       {/* Flashcard */}
       <div className="w-full relative" style={{ height: '300px', perspective: '1000px' }}>
         <motion.div
-          key={current.id}
+          key={currentCard.id}
           animate={{ rotateY: isFlipped ? 180 : 0 }}
           transition={{ duration: 0.5, type: 'spring', stiffness: 80 }}
           style={{ transformStyle: 'preserve-3d', width: '100%', height: '100%', position: 'relative' }}
@@ -236,7 +228,7 @@ export default function RecallPage() {
             onClick={() => !isFlipped && setIsFlipped(true)}
           >
             <Brain size={24} className="text-brand-200 mb-4" />
-            <p className="text-zinc-800 text-base font-semibold text-center leading-relaxed">{current.question}</p>
+            <p className="text-zinc-800 text-base font-semibold text-center leading-relaxed">{currentCard.question}</p>
             <p className="text-xs text-zinc-400 mt-6">Tap to reveal answer</p>
           </div>
 
@@ -246,7 +238,7 @@ export default function RecallPage() {
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
             <p className="text-white/70 text-xs font-medium uppercase tracking-wide mb-4">Answer</p>
-            <p className="text-white text-sm text-center leading-relaxed">{current.answer}</p>
+            <p className="text-white text-sm text-center leading-relaxed">{currentCard.answer}</p>
           </div>
         </motion.div>
       </div>

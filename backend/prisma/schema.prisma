@@ -196,17 +196,22 @@ model Note {
 }
 
 model NoteChunk {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  noteId     String   @db.Uuid
-  content    String
-  chunkIndex Int
-  vectorId   String?
-  createdAt  DateTime @default(now())
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noteId          String    @db.Uuid
+  content         String
+  chunkIndex      Int
+  vectorId        String?
+  // SM-2 spaced repetition fields
+  nextReviewAt    DateTime?
+  easinessFactor  Float     @default(2.5)
+  repetitions     Int       @default(0)
+  createdAt       DateTime  @default(now())
 
   note        Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
   recallCards RecallCard[]
 
   @@index([noteId])
+  @@index([nextReviewAt])
   @@map("note_chunks")
 }
 
