@@ -55,11 +55,14 @@ export class ChatService {
       },
     });
 
-    // Update user's sentiment baseline (rolling average)
+    // Update user's sentiment baseline (exponential moving average — weight 20% new, 80% historical)
+    const currentUser = await this.prisma.user.findUnique({ where: { id: userId }, select: { sentimentBaseline: true } });
+    const prevBaseline = currentUser?.sentimentBaseline ?? 0.5;
+    const newBaseline = 0.8 * prevBaseline + 0.2 * sentimentScore;
     await this.prisma.user.update({
       where: { id: userId },
       data: {
-        sentimentBaseline: { set: sentimentScore * 0.2 + 0.8 * (user ? 0.5 : sentimentScore) },
+        sentimentBaseline: { set: Math.max(0, Math.min(1, newBaseline)) },
         lastActiveAt: new Date(),
       },
     });

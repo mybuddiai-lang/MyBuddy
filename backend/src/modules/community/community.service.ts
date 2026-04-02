@@ -6,11 +6,25 @@ export class CommunityService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(userId: string) {
-    return this.prisma.community.findMany({
+    const communities = await this.prisma.community.findMany({
       where: { isPublic: true },
       orderBy: { memberCount: 'desc' },
       take: 50,
     });
+    const memberships = await this.prisma.communityMember.findMany({
+      where: { userId, communityId: { in: communities.map(c => c.id) } },
+      select: { communityId: true, role: true },
+    });
+    const memberMap = Object.fromEntries(memberships.map(m => [m.communityId, m.role]));
+    return communities.map(c => ({ ...c, myRole: memberMap[c.id] ?? null }));
+  }
+
+  async findMy(userId: string) {
+    const memberships = await this.prisma.communityMember.findMany({
+      where: { userId },
+      include: { community: true },
+    });
+    return memberships.map(m => ({ ...m.community, myRole: m.role }));
   }
 
   async create(userId: string, data: { name: string; description?: string; isPublic?: boolean; schoolFilter?: string; subjectFilter?: string }) {

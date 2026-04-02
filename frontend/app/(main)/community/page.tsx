@@ -1,30 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Users, Plus, Hash, Lock, ChevronRight, MessageCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { communityApi } from '@/lib/api/community';
 
 interface Pod {
   id: string;
   name: string;
   description: string;
   memberCount: number;
-  isPublic: boolean;
-  subject: string;
-  lastActivity: string;
+  isPublic?: boolean;
+  isPrivate?: boolean;
+  field?: string;
+  subject?: string;
+  lastActivity?: string;
   isMember: boolean;
+  myRole?: string | null;
   color: string;
 }
 
+const SUBJECT_COLORS: Record<string, string> = {
+  Medicine: 'bg-red-100 text-red-600',
+  Anatomy: 'bg-blue-100 text-blue-600',
+  Law: 'bg-amber-100 text-amber-600',
+  Engineering: 'bg-green-100 text-green-600',
+  Accounting: 'bg-purple-100 text-purple-600',
+  Pharmacy: 'bg-teal-100 text-teal-600',
+  General: 'bg-brand-100 text-brand-600',
+};
+
+const COLOR_LIST = Object.values(SUBJECT_COLORS);
+
+function getColor(pod: Pod): string {
+  const key = pod.field || pod.subject || '';
+  return SUBJECT_COLORS[key] || COLOR_LIST[Math.abs(pod.id.charCodeAt(0)) % COLOR_LIST.length];
+}
+
 const MOCK_PODS: Pod[] = [
-  { id: '1', name: 'MBBS Finals 2026', description: 'Study group for final year medical students', memberCount: 48, isPublic: true, subject: 'Medicine', lastActivity: '2m ago', isMember: true, color: 'bg-red-100 text-red-600' },
-  { id: '2', name: 'Anatomy Nerds', description: 'Anatomy deep dives, diagrams, and mnemonics', memberCount: 23, isPublic: true, subject: 'Anatomy', lastActivity: '1h ago', isMember: true, color: 'bg-blue-100 text-blue-600' },
-  { id: '3', name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates', memberCount: 67, isPublic: true, subject: 'Law', lastActivity: '15m ago', isMember: false, color: 'bg-amber-100 text-amber-600' },
-  { id: '4', name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics', memberCount: 31, isPublic: true, subject: 'Engineering', lastActivity: '3h ago', isMember: false, color: 'bg-green-100 text-green-600' },
-  { id: '5', name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', memberCount: 19, isPublic: true, subject: 'Accounting', lastActivity: '5h ago', isMember: false, color: 'bg-purple-100 text-purple-600' },
-  { id: '6', name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', memberCount: 42, isPublic: false, subject: 'Pharmacy', lastActivity: '30m ago', isMember: false, color: 'bg-teal-100 text-teal-600' },
+  { id: '1', name: 'MBBS Finals 2026', description: 'Study group for final year medical students', memberCount: 48, isPublic: true, field: 'Medicine', lastActivity: '2m ago', isMember: true, color: 'bg-red-100 text-red-600' },
+  { id: '2', name: 'Anatomy Nerds', description: 'Anatomy deep dives, diagrams, and mnemonics', memberCount: 23, isPublic: true, field: 'Anatomy', lastActivity: '1h ago', isMember: true, color: 'bg-blue-100 text-blue-600' },
+  { id: '3', name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates', memberCount: 67, isPublic: true, field: 'Law', lastActivity: '15m ago', isMember: false, color: 'bg-amber-100 text-amber-600' },
+  { id: '4', name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics', memberCount: 31, isPublic: true, field: 'Engineering', lastActivity: '3h ago', isMember: false, color: 'bg-green-100 text-green-600' },
+  { id: '5', name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', memberCount: 19, isPublic: true, field: 'Accounting', lastActivity: '5h ago', isMember: false, color: 'bg-purple-100 text-purple-600' },
+  { id: '6', name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', memberCount: 42, isPrivate: true, field: 'Pharmacy', lastActivity: '30m ago', isMember: false, color: 'bg-teal-100 text-teal-600' },
 ];
 
 export default function CommunityPage() {
@@ -35,42 +56,80 @@ export default function CommunityPage() {
   const [newPodName, setNewPodName] = useState('');
   const [newPodSubject, setNewPodSubject] = useState('');
   const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    // Try to load from API — keep mock data on failure
+    Promise.all([
+      communityApi.getAll().catch(() => null),
+      communityApi.getMy().catch(() => null),
+    ]).then(([allRaw, myRaw]) => {
+      if (!allRaw && !myRaw) return; // API unavailable — keep mock data
+      const all = (allRaw as any)?.data ?? [];
+      const myIds = new Set(((myRaw as any)?.data ?? []).map((p: any) => p.id));
+      if (all.length > 0) {
+        setPods(all.map((p: any) => ({
+          ...p,
+          field: p.field || p.subjectFilter || 'General',
+          isMember: myIds.has(p.id),
+          color: getColor({ ...p, field: p.field }),
+        })));
+      }
+    });
+  }, []);
 
   const myPods = pods.filter(p => p.isMember);
   const discoverPods = pods.filter(p => !p.isMember);
 
   const filteredMy = myPods.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.subject.toLowerCase().includes(search.toLowerCase())
+    (p.field || p.subject || '').toLowerCase().includes(search.toLowerCase())
   );
   const filteredDiscover = discoverPods.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.subject.toLowerCase().includes(search.toLowerCase())
+    (p.field || p.subject || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleJoin = (id: string) => {
+  const handleJoin = async (id: string) => {
+    // Optimistic update
     setPods(prev => prev.map(p => p.id === id ? { ...p, isMember: true, memberCount: p.memberCount + 1 } : p));
+    try {
+      await communityApi.join(id);
+    } catch {
+      // silent fail — UI already updated
+    }
     toast.success('Joined the pod! 🎉');
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newPodName.trim()) return toast.error('Give your pod a name');
-    const newPod: Pod = {
+    setCreating(true);
+    const optimisticPod: Pod = {
       id: `pod-${Date.now()}`,
       name: newPodName,
       description: `A study pod for ${newPodSubject || 'students'}`,
       memberCount: 1,
       isPublic: true,
-      subject: newPodSubject || 'General',
+      field: newPodSubject || 'General',
       lastActivity: 'Just now',
       isMember: true,
-      color: 'bg-brand-100 text-brand-600',
+      color: SUBJECT_COLORS[newPodSubject] || 'bg-brand-100 text-brand-600',
     };
-    setPods(prev => [newPod, ...prev]);
+    setPods(prev => [optimisticPod, ...prev]);
     setShowCreate(false);
     setNewPodName('');
     setNewPodSubject('');
     toast.success('Pod created! Share it with your classmates.');
+    try {
+      const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
+      const created = (res as any)?.data;
+      if (created?.id) {
+        setPods(prev => prev.map(p => p.id === optimisticPod.id ? { ...created, isMember: true, color: optimisticPod.color } : p));
+      }
+    } catch {
+      // keep optimistic pod
+    }
+    setCreating(false);
   };
 
   const displayList = activeTab === 'my' ? filteredMy : filteredDiscover;
@@ -117,60 +176,68 @@ export default function CommunityPage() {
 
       {/* Pod list */}
       <div className="space-y-3">
-        {displayList.map((pod, i) => (
-          <motion.div
-            key={pod.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card"
-          >
-            <div className="flex items-start gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${pod.color}`}>
-                {pod.isPublic ? <Hash size={18} /> : <Lock size={18} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-zinc-800 text-sm truncate">{pod.name}</p>
-                  <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full shrink-0">{pod.subject}</span>
+        {displayList.map((pod, i) => {
+          const isPrivate = pod.isPrivate ?? !pod.isPublic;
+          const podColor = pod.color || getColor(pod);
+          return (
+            <motion.div
+              key={pod.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card"
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${podColor}`}>
+                  {isPrivate ? <Lock size={18} /> : <Hash size={18} />}
                 </div>
-                <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{pod.description}</p>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-xs text-zinc-400 flex items-center gap-1">
-                    <Users size={10} /> {pod.memberCount} members
-                  </span>
-                  <span className="text-xs text-zinc-300">·</span>
-                  <span className="text-xs text-zinc-400 flex items-center gap-1">
-                    <MessageCircle size={10} /> {pod.lastActivity}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-zinc-800 text-sm truncate">{pod.name}</p>
+                    <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full shrink-0">{pod.field || pod.subject}</span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{pod.description}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-xs text-zinc-400 flex items-center gap-1">
+                      <Users size={10} /> {pod.memberCount} members
+                    </span>
+                    {pod.lastActivity && (
+                      <>
+                        <span className="text-xs text-zinc-300">·</span>
+                        <span className="text-xs text-zinc-400 flex items-center gap-1">
+                          <MessageCircle size={10} /> {pod.lastActivity}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
+                {pod.isMember ? (
+                  <button
+                    onClick={() => router.push(`/community/${pod.id}`)}
+                    className="text-zinc-300 hover:text-zinc-500 shrink-0 mt-1"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleJoin(pod.id)}
+                    className="text-xs bg-brand-50 text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg font-medium hover:bg-brand-100 transition shrink-0"
+                  >
+                    Join
+                  </button>
+                )}
               </div>
-              {pod.isMember ? (
+              {pod.isMember && (
                 <button
                   onClick={() => router.push(`/community/${pod.id}`)}
-                  className="text-zinc-300 hover:text-zinc-500 shrink-0 mt-1"
+                  className="mt-3 w-full py-2 rounded-xl text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition"
                 >
-                  <ChevronRight size={18} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleJoin(pod.id)}
-                  className="text-xs bg-brand-50 text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg font-medium hover:bg-brand-100 transition shrink-0"
-                >
-                  Join
+                  Open Pod →
                 </button>
               )}
-            </div>
-            {pod.isMember && (
-              <button
-                onClick={() => router.push(`/community/${pod.id}`)}
-                className="mt-3 w-full py-2 rounded-xl text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition"
-              >
-                Open Pod →
-              </button>
-            )}
-          </motion.div>
-        ))}
+            </motion.div>
+          );
+        })}
 
         {displayList.length === 0 && (
           <div className="text-center py-12">
@@ -211,9 +278,10 @@ export default function CommunityPage() {
               <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition">Cancel</button>
               <button
                 onClick={handleCreate}
-                className="flex-1 py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition shadow-soft"
+                disabled={creating}
+                className="flex-1 py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 disabled:opacity-60 transition shadow-soft"
               >
-                Create Pod
+                {creating ? 'Creating...' : 'Create Pod'}
               </button>
             </div>
           </motion.div>

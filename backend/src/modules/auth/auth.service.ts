@@ -71,6 +71,38 @@ export class AuthService {
     await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
+  async forgotPassword(email: string) {
+    // Always return success to prevent email enumeration
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user) {
+      // In production: generate a secure token, save it, send email
+      // For now, log it so it can be used during development
+      const resetToken = this.jwt.sign(
+        { sub: user.id, type: 'password_reset' },
+        { expiresIn: '1h' },
+      );
+      // TODO: send resetToken via email service
+      this.logResetToken(user.email, resetToken);
+    }
+    return { message: 'If this email is registered, a reset link has been sent.' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const payload = this.jwt.verify(token) as any;
+    if (payload.type !== 'password_reset') {
+      throw new UnauthorizedException('Invalid reset token');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({ where: { id: payload.sub }, data: { passwordHash } });
+    await this.prisma.refreshToken.deleteMany({ where: { userId: payload.sub } });
+    return { message: 'Password reset successfully' };
+  }
+
+  private logResetToken(email: string, token: string) {
+    // Development helper — remove in production
+    console.log(`[ForgotPassword] Token for ${email}: ${token}`);
+  }
+
   private async generateTokens(userId: string, email: string, role: string) {
     const payload = { sub: userId, email, role };
     const accessToken = this.jwt.sign(payload, { expiresIn: '15m' });
