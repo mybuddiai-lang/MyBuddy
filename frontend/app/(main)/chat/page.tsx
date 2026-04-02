@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Smile } from 'lucide-react';
+import { Send, Paperclip, RefreshCcw } from 'lucide-react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useChatStore } from '@/lib/store/chat.store';
 import { useAuthStore } from '@/lib/store/auth.store';
+import type { Message } from '@/components/chat/message-bubble';
 
 const SUGGESTED_PROMPTS = [
   "I'm feeling overwhelmed with my studies 😓",
@@ -15,20 +16,51 @@ const SUGGESTED_PROMPTS = [
   "Give me a quick quiz on my last upload",
 ];
 
+// Demo messages shown when there's no chat history
+const DEMO_MESSAGES: Message[] = [
+  {
+    id: 'demo-1',
+    role: 'user',
+    content: "Hi Buddi, I have my finals in 3 weeks and I feel like I haven't studied enough",
+    createdAt: new Date(Date.now() - 2 * 60000),
+  },
+  {
+    id: 'demo-2',
+    role: 'assistant',
+    content: "Hey — first, I want you to take a breath. 3 weeks is actually meaningful time if you use it strategically.\n\nThe feeling of 'not having studied enough' is almost universal before finals — even among students who are very well prepared. That anxiety is your brain trying to help, not predict the future.\n\nLet's make a plan together. What subjects are you most worried about right now, and roughly how many hours a day can you realistically set aside?",
+    createdAt: new Date(Date.now() - 90000),
+  },
+];
+
 export default function ChatPage() {
-  const { messages, isTyping, sendMessage } = useChatStore();
+  const { messages, isTyping, sendMessage, loadHistory } = useChatStore();
   const { user } = useAuthStore();
   const [input, setInput] = useState('');
+  const [showDemo, setShowDemo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    loadHistory().then(() => {
+      // If still no messages after loading, show demo
+      setTimeout(() => {
+        if (useChatStore.getState().messages.length === 0) {
+          setShowDemo(true);
+        }
+      }, 500);
+    });
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, showDemo]);
+
+  const displayMessages = messages.length > 0 ? messages : (showDemo ? DEMO_MESSAGES : []);
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
+    setShowDemo(false);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     await sendMessage(text);
@@ -51,7 +83,7 @@ export default function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-130px)]">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
-        {messages.length === 0 ? (
+        {displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center mb-4">
               <span className="text-3xl">🤝</span>
@@ -74,8 +106,15 @@ export default function ChatPage() {
           </div>
         ) : (
           <>
+            {showDemo && (
+              <div className="flex items-center gap-2 mb-3 px-2">
+                <div className="flex-1 h-px bg-zinc-100" />
+                <span className="text-xs text-zinc-400 shrink-0">Sample conversation</span>
+                <div className="flex-1 h-px bg-zinc-100" />
+              </div>
+            )}
             <AnimatePresence initial={false}>
-              {messages.map((msg) => (
+              {displayMessages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} />
               ))}
             </AnimatePresence>
@@ -114,7 +153,7 @@ export default function ChatPage() {
             <Send size={14} className={input.trim() ? 'text-white' : 'text-zinc-400'} />
           </button>
         </div>
-        <p className="text-center text-xs text-zinc-400 mt-2">Buddi is an AI companion. Not a substitute for medical advice.</p>
+        <p className="text-center text-xs text-zinc-400 mt-2">Buddi is an AI companion. Not a substitute for professional advice.</p>
       </div>
     </div>
   );

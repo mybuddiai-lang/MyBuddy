@@ -103,18 +103,19 @@ model User {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  profile         UserProfile?
-  refreshTokens   RefreshToken[]
-  chatMessages    ChatMessage[]
-  notes           Note[]
-  reminders       Reminder[]
-  recallSessions  RecallSession[]
-  communityPosts  CommunityPost[]
-  memberships     CommunityMember[]
-  payments        Payment[]
-  subscription    Subscription?
-  analyticsEvents AnalyticsEvent[]
-  adminAlerts     AdminAlert[]
+  profile           UserProfile?
+  refreshTokens     RefreshToken[]
+  chatMessages      ChatMessage[]
+  notes             Note[]
+  reminders         Reminder[]
+  recallSessions    RecallSession[]
+  communityPosts    CommunityPost[]
+  memberships       CommunityMember[]
+  payments          Payment[]
+  subscription      Subscription?
+  analyticsEvents   AnalyticsEvent[]
+  adminAlerts       AdminAlert[]
+  pushSubscriptions PushSubscription[]
 
   @@index([email])
   @@index([subscriptionTier])
@@ -364,6 +365,21 @@ model AnalyticsEvent {
   @@index([eventType, createdAt])
   @@index([userId, createdAt])
   @@map("analytics_events")
+}
+
+model PushSubscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model AdminAlert {
