@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -56,5 +56,20 @@ export class AdminController {
   @Post('alerts/:id/resolve')
   resolveAlert(@Param('id') id: string) {
     return this.adminService.resolveAlert(id);
+  }
+
+  @Get('analytics/sentiment-heatmap')
+  getSentimentHeatmap() {
+    return this.adminService.getSentimentHeatmap();
+  }
+
+  @Get('analytics/cohort-retention')
+  getCohortRetention() {
+    return this.adminService.getCohortRetention();
+  }
+
+  @Post('users/:id/suspend')
+  suspendUser(@Param('id') id: string, @Body('suspend') suspend: boolean) {
+    return this.adminService.suspendUser(id, suspend !== false);
   }
 }

@@ -109,6 +109,8 @@ model User {
   reminders         Reminder[]
   recallSessions    RecallSession[]
   communityPosts    CommunityPost[]
+  postLikes         CommunityPostLike[]
+  postComments      CommunityPostComment[]
   memberships       CommunityMember[]
   payments          Payment[]
   subscription      Subscription?
@@ -225,6 +227,12 @@ model Reminder {
   difficultyLevel Int            @default(1)
   status          ReminderStatus @default(PENDING)
   type            ReminderType   @default(RECALL)
+  // Snooze support
+  snoozedUntil    DateTime?
+  snoozeCount     Int            @default(0)
+  // Repeat/recurring support
+  repeatType      String         @default("NONE")
+  repeatInterval  Int?
   createdAt       DateTime       @default(now())
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -303,19 +311,50 @@ model CommunityMember {
 }
 
 model CommunityPost {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  communityId  String   @db.Uuid
-  authorId     String   @db.Uuid
-  content      String
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId   String   @db.Uuid
+  authorId      String   @db.Uuid
+  content       String
   attachmentUrl String?
-  likesCount   Int      @default(0)
-  createdAt    DateTime @default(now())
+  likesCount    Int      @default(0)
+  commentsCount Int      @default(0)
+  createdAt     DateTime @default(now())
 
-  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  community Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author    User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes     CommunityPostLike[]
+  comments  CommunityPostComment[]
 
   @@index([communityId, createdAt])
   @@map("community_posts")
+}
+
+model CommunityPostLike {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("community_post_likes")
+}
+
+model CommunityPostComment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @db.Uuid
+  authorId  String   @db.Uuid
+  content   String
+  createdAt DateTime @default(now())
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("community_post_comments")
 }
 
 model Payment {

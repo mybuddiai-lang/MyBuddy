@@ -87,4 +87,64 @@ export class CommunityService {
       include: { author: { select: { id: true, name: true } } },
     });
   }
+
+  async likePost(postId: string, userId: string) {
+    const existing = await this.prisma.communityPostLike.findUnique({
+      where: { postId_userId: { postId, userId } },
+    });
+    if (existing) return { liked: true, message: 'Already liked' };
+
+    await this.prisma.$transaction([
+      this.prisma.communityPostLike.create({ data: { postId, userId } }),
+      this.prisma.communityPost.update({ where: { id: postId }, data: { likesCount: { increment: 1 } } }),
+    ]);
+    return { liked: true };
+  }
+
+  async unlikePost(postId: string, userId: string) {
+    const existing = await this.prisma.communityPostLike.findUnique({
+      where: { postId_userId: { postId, userId } },
+    });
+    if (!existing) return { liked: false, message: 'Not liked' };
+
+    await this.prisma.$transaction([
+      this.prisma.communityPostLike.delete({ where: { postId_userId: { postId, userId } } }),
+      this.prisma.communityPost.update({ where: { id: postId }, data: { likesCount: { decrement: 1 } } }),
+    ]);
+    return { liked: false };
+  }
+
+  async getComments(postId: string) {
+    return this.prisma.communityPostComment.findMany({
+      where: { postId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        author: { select: { id: true, name: true, profile: { select: { avatarUrl: true } } } },
+      },
+    });
+  }
+
+  async createComment(postId: string, authorId: string, content: string) {
+    const [comment] = await this.prisma.$transaction([
+      this.prisma.communityPostComment.create({
+        data: { postId, authorId, content },
+        include: { author: { select: { id: true, name: true, profile: { select: { avatarUrl: true } } } } },
+      }),
+      this.prisma.communityPost.update({ where: { id: postId }, data: { commentsCount: { increment: 1 } } }),
+    ]);
+    return comment;
+  }
+
+  async deleteComment(commentId: string, authorId: string) {
+    const comment = await this.prisma.communityPostComment.findFirst({
+      where: { id: commentId, authorId },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    await this.prisma.$transaction([
+      this.prisma.communityPostComment.delete({ where: { id: commentId } }),
+      this.prisma.communityPost.update({ where: { id: comment.postId }, data: { commentsCount: { decrement: 1 } } }),
+    ]);
+    return { deleted: true };
+  }
 }

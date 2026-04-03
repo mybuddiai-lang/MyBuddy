@@ -90,6 +90,35 @@ export class UsersService {
     });
   }
 
+  async getResilienceScore(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { resilienceScore: true, studyStreak: true, sentimentBaseline: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      resilienceScore: Math.round(user.resilienceScore),
+      studyStreak: user.studyStreak,
+      sentimentBaseline: user.sentimentBaseline,
+    };
+  }
+
+  async getPublicResilienceScore(targetUserId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, name: true, school: true, resilienceScore: true, studyStreak: true, profile: { select: { avatarUrl: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      id: user.id,
+      name: user.name,
+      school: user.school,
+      avatarUrl: user.profile?.avatarUrl ?? null,
+      resilienceScore: Math.round(user.resilienceScore),
+      studyStreak: user.studyStreak,
+    };
+  }
+
   async deleteAccount(userId: string) {
     await this.prisma.user.delete({ where: { id: userId } });
     return { message: 'Account deleted' };

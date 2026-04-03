@@ -64,6 +64,56 @@ export class RemindersService {
     });
   }
 
+  async snooze(id: string, userId: string, hours: number) {
+    const reminder = await this.prisma.reminder.findFirst({ where: { id, userId } });
+    if (!reminder) throw new NotFoundException('Reminder not found');
+    const snoozedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+    return this.prisma.reminder.update({
+      where: { id },
+      data: {
+        snoozedUntil,
+        snoozeCount: { increment: 1 },
+        scheduledFor: snoozedUntil,
+        status: 'PENDING',
+      },
+    });
+  }
+
+  async skip(id: string, userId: string) {
+    const reminder = await this.prisma.reminder.findFirst({ where: { id, userId } });
+    if (!reminder) throw new NotFoundException('Reminder not found');
+
+    // If recurring, auto-schedule next occurrence
+    if (reminder.repeatType && reminder.repeatType !== 'NONE' && reminder.repeatInterval) {
+      const next = this.nextOccurrence(reminder.scheduledFor, reminder.repeatType, reminder.repeatInterval);
+      await this.prisma.reminder.create({
+        data: {
+          userId,
+          noteId: reminder.noteId,
+          title: reminder.title,
+          description: reminder.description,
+          scheduledFor: next,
+          difficultyLevel: reminder.difficultyLevel,
+          type: reminder.type,
+          repeatType: reminder.repeatType,
+          repeatInterval: reminder.repeatInterval,
+        },
+      });
+    }
+
+    return this.prisma.reminder.update({ where: { id }, data: { status: 'SKIPPED' } });
+  }
+
+  private nextOccurrence(from: Date, repeatType: string, interval: number): Date {
+    const d = new Date(from);
+    switch (repeatType) {
+      case 'DAILY': d.setDate(d.getDate() + interval); break;
+      case 'WEEKLY': d.setDate(d.getDate() + interval * 7); break;
+      case 'MONTHLY': d.setMonth(d.getMonth() + interval); break;
+    }
+    return d;
+  }
+
   @Cron(CronExpression.EVERY_5_MINUTES)
   async processDueReminders() {
     const dueReminders = await this.prisma.reminder.findMany({

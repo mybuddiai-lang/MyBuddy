@@ -19,6 +19,7 @@ import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RedisModule } from './modules/cache/redis.module';
 import { EmailModule } from './modules/email/email.module';
+import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { EmailModule } from './modules/email/email.module';
     NotificationsModule,
     RedisModule,
     EmailModule,
+    LeaderboardModule,
   ],
 })
 export class AppModule {}

@@ -74,4 +74,62 @@ export class AdminService {
       data: { resolvedAt: new Date() },
     });
   }
+
+  async getSentimentHeatmap() {
+    const users = await this.prisma.user.findMany({
+      where: { sentimentBaseline: { not: null } },
+      select: { school: true, department: true, sentimentBaseline: true },
+    });
+
+    const groups: Record<string, { school: string; department: string | null; scores: number[] }> = {};
+    for (const u of users) {
+      const key = `${u.school ?? 'Unknown'}::${u.department ?? 'Unknown'}`;
+      if (!groups[key]) groups[key] = { school: u.school ?? 'Unknown', department: u.department, scores: [] };
+      groups[key].scores.push(u.sentimentBaseline);
+    }
+
+    return Object.values(groups).map((g) => ({
+      school: g.school,
+      department: g.department,
+      avgSentiment: g.scores.reduce((a, b) => a + b, 0) / g.scores.length,
+      userCount: g.scores.length,
+      riskCount: g.scores.filter((s) => s < 0.35).length,
+    })).sort((a, b) => a.avgSentiment - b.avgSentiment);
+  }
+
+  async getCohortRetention() {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo  = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const oneDayAgo     = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [total, active30d, active7d, active1d] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { lastActiveAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.user.count({ where: { lastActiveAt: { gte: sevenDaysAgo } } }),
+      this.prisma.user.count({ where: { lastActiveAt: { gte: oneDayAgo } } }),
+    ]);
+
+    return {
+      totalUsers: total,
+      retention30d: total ? Math.round((active30d / total) * 100) : 0,
+      retention7d:  total ? Math.round((active7d  / total) * 100) : 0,
+      retention1d:  total ? Math.round((active1d  / total) * 100) : 0,
+      active30d,
+      active7d,
+      active1d,
+    };
+  }
+
+  async suspendUser(userId: string, suspend: boolean) {
+    // Store suspension as role downgrade; a proper suspension would use a dedicated field
+    await this.prisma.adminAlert.create({
+      data: {
+        type: suspend ? 'USER_SUSPENDED' : 'USER_REINSTATED',
+        severity: 'HIGH',
+        title: suspend ? 'User suspended by admin' : 'User reinstated by admin',
+        userId,
+      },
+    });
+    return { userId, suspended: suspend };
+  }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -30,6 +30,16 @@ export class UsersController {
   @Get('activity')
   getActivity(@CurrentUser('id') userId: string, @Query('limit') limit?: string) {
     return this.usersService.getActivity(userId, limit ? parseInt(limit, 10) : 5);
+  }
+
+  @Get('resilience-score')
+  getResilienceScore(@CurrentUser('id') userId: string) {
+    return this.usersService.getResilienceScore(userId);
+  }
+
+  @Get(':id/resilience-score')
+  getPublicResilienceScore(@Param('id') id: string) {
+    return this.usersService.getPublicResilienceScore(id);
   }
 
   @Delete('account')

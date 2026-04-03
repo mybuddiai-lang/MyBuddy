@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CommunityService } from './community.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -58,5 +58,48 @@ export class CommunityController {
     @Body() body: { content: string; attachmentUrl?: string },
   ) {
     return this.communityService.createPost(communityId, userId, body.content, body.attachmentUrl);
+  }
+
+  @Post(':communityId/posts/:postId/like')
+  @ApiOperation({ summary: 'Like a community post' })
+  likePost(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communityService.likePost(postId, userId);
+  }
+
+  @Delete(':communityId/posts/:postId/like')
+  @ApiOperation({ summary: 'Unlike a community post' })
+  unlikePost(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communityService.unlikePost(postId, userId);
+  }
+
+  @Get(':communityId/posts/:postId/comments')
+  @ApiOperation({ summary: 'Get comments on a post' })
+  getComments(@Param('postId') postId: string) {
+    return this.communityService.getComments(postId);
+  }
+
+  @Post(':communityId/posts/:postId/comments')
+  @ApiOperation({ summary: 'Comment on a post' })
+  createComment(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+    @Body('content') content: string,
+  ) {
+    return this.communityService.createComment(postId, userId, content);
+  }
+
+  @Delete(':communityId/posts/:postId/comments/:commentId')
+  @ApiOperation({ summary: 'Delete a comment' })
+  deleteComment(
+    @Param('commentId') commentId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communityService.deleteComment(commentId, userId);
   }
 }
