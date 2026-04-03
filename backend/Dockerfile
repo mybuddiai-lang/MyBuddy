@@ -20,4 +20,5 @@ RUN pnpm add -D prisma && npx prisma generate
 # Copy compiled output
 COPY --from=builder /app/dist ./dist
 EXPOSE 3001
-CMD ["node", "dist/main"]
+# Run migrations then start — safe to run on every deploy
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]

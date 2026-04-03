@@ -18,9 +18,17 @@ async function bootstrap() {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(compression());
 
-  // CORS
+  // CORS — supports comma-separated FRONTEND_URL list for multi-environment
+  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow server-to-server (no origin) and whitelisted origins
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
