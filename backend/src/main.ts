@@ -27,7 +27,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       // Allow server-to-server (no origin) and whitelisted origins
       if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else callback(new Error(`Origin ${origin} not allowed by CORS`));
+      else callback(null, false); // return 403, not 500
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

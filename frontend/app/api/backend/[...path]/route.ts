@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // BACKEND_API_URL is a server-only var — read from process.env at runtime (not inlined at build time like NEXT_PUBLIC_* vars)
 const BACKEND = process.env.BACKEND_API_URL || 'http://localhost:3001/api';
 
-const SKIP_HEADERS = new Set(['host', 'connection', 'transfer-encoding', 'keep-alive']);
+// Strip these from the forwarded request — origin/referer cause CORS rejection on the backend
+// since this is a server-to-server call (no browser origin needed)
+const SKIP_HEADERS = new Set(['host', 'connection', 'transfer-encoding', 'keep-alive', 'origin', 'referer']);
 
 async function handler(
   req: NextRequest,
