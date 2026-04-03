@@ -45,7 +45,6 @@ export default function SignupPage() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-
       const data = await authApi.register({
         name: form.name,
         email: form.email,
