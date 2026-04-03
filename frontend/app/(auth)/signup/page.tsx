@@ -45,6 +45,8 @@ export default function SignupPage() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
+console.log('ENV URL:', process.env.NEXT_PUBLIC_API_URL);
+
       const data = await authApi.register({
         name: form.name,
         email: form.email,
