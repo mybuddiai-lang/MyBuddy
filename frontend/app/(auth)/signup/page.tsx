@@ -45,7 +45,15 @@ export default function SignupPage() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const data = await authApi.register(form);
+      const data = await authApi.register({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        school: form.school || undefined,
+        department: form.department || undefined,
+        specialization: form.specialization || undefined,
+        examDate: form.examDate || undefined,
+      });
       login(data.user, data.accessToken, data.refreshToken);
       toast.success('Welcome to Buddi! 🎉');
       router.replace('/home');
