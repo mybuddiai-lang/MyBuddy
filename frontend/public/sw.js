@@ -1,6 +1,5 @@
-const CACHE_NAME = 'buddi-v2';
+const CACHE_NAME = 'buddi-v3';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/offline',
 ];
@@ -49,7 +48,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static: cache-first
+  // HTML pages: always network-first (never cache — stale HTML breaks JS bundle references)
+  const isHtml = request.headers.get('accept')?.includes('text/html');
+  if (isHtml) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/offline'))
+    );
+    return;
+  }
+
+  // Static assets (images, fonts, manifests): cache-first
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
