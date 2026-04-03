@@ -12,16 +12,24 @@ const PLANS = {
 
 @Injectable()
 export class PaymentsService {
-  private stripe: Stripe;
+  private stripe: Stripe | null = null;
   private readonly logger = new Logger(PaymentsService.name);
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
   ) {
-    this.stripe = new Stripe(this.config.get<string>('STRIPE_SECRET_KEY', ''), {
-      apiVersion: '2025-02-24.acacia',
-    });
+    const stripeKey = this.config.get<string>('STRIPE_SECRET_KEY', '');
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' });
+    } else {
+      this.logger.warn('STRIPE_SECRET_KEY not set — Stripe payments disabled');
+    }
+  }
+
+  private getStripe(): Stripe {
+    if (!this.stripe) throw new BadRequestException('Stripe is not configured');
+    return this.stripe;
   }
 
   async createStripeSession(userId: string, planType: string) {
@@ -30,7 +38,7 @@ export class PaymentsService {
     const plan = PLANS[planType];
     if (!plan) throw new BadRequestException('Invalid plan');
 
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await this.getStripe().checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
       customer_email: user.email,
@@ -68,7 +76,7 @@ export class PaymentsService {
     let event: Stripe.Event;
 
     try {
-      event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      event = this.getStripe().webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (err) {
       throw new BadRequestException('Invalid webhook signature');
     }
