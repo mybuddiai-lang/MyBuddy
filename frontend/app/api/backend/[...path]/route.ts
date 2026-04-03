@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Read at runtime when the Next.js server starts — not baked at build time
-const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+// BACKEND_API_URL is a server-only var — read from process.env at runtime (not inlined at build time like NEXT_PUBLIC_* vars)
+const BACKEND = process.env.BACKEND_API_URL || 'http://localhost:3001/api';
 
 const SKIP_HEADERS = new Set(['host', 'connection', 'transfer-encoding', 'keep-alive']);
 
