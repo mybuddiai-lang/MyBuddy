@@ -66,12 +66,13 @@ export default function SubscriptionPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handleUpgrade = async (planId: string) => {
-    setLoading(planId);
-    try {
-      // Try Paystack first for Nigerian users, Stripe for others
-      const usePaystack = navigator.language.startsWith('en-NG') || Intl.DateTimeFormat().resolvedOptions().timeZone.includes('Lagos');
+  // Detect Nigerian/African users by timezone — more reliable than language locale
+  const isAfrica = Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Africa');
 
+  const handleUpgrade = async (planId: string, forceProvider?: 'stripe' | 'paystack') => {
+    setLoading(planId);
+    const usePaystack = forceProvider ? forceProvider === 'paystack' : isAfrica;
+    try {
       if (usePaystack) {
         const res = await apiClient.post('/payments/paystack/initialize', { planType: planId });
         window.location.href = res.data.data.authorizationUrl;
@@ -80,7 +81,18 @@ export default function SubscriptionPage() {
         window.location.href = res.data.data.checkoutUrl;
       }
     } catch {
-      toast.error('Could not start checkout. Please try again.');
+      // If preferred provider fails, try the other one
+      try {
+        if (usePaystack) {
+          const res = await apiClient.post('/payments/stripe/create-session', { planType: planId });
+          window.location.href = res.data.data.checkoutUrl;
+        } else {
+          const res = await apiClient.post('/payments/paystack/initialize', { planType: planId });
+          window.location.href = res.data.data.authorizationUrl;
+        }
+      } catch {
+        toast.error('Could not start checkout. Please try again.');
+      }
     } finally {
       setLoading(null);
     }

@@ -17,7 +17,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET', 'buddi-secret-key'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: '7d' },
       }),
       inject: [ConfigService],
     }),

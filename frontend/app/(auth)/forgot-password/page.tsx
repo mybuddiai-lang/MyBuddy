@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center px-6">
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center px-6">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         {/* Back link */}
         <div className="w-full max-w-sm mb-8">
@@ -101,7 +101,7 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
               placeholder="you@university.edu"
-              className={`w-full px-4 py-3 rounded-xl border ${error ? 'border-red-300 focus:ring-red-500' : 'border-zinc-200 focus:ring-brand-500'} bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:border-transparent transition text-sm`}
+              className={`w-full px-4 py-3 rounded-xl border ${error ? 'border-red-300 focus:ring-red-500' : 'border-zinc-200 dark:border-zinc-700 focus:ring-brand-500'} bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:border-transparent transition text-sm`}
               required
             />
             {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}

@@ -52,12 +52,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadHistory().then(() => {
-      // If still no messages after loading, show demo
-      setTimeout(() => {
-        if (useChatStore.getState().messages.length === 0) {
-          setShowDemo(true);
-        }
-      }, 500);
+      // Check store directly after load resolves to avoid stale closure
+      if (useChatStore.getState().messages.length === 0) {
+        setShowDemo(true);
+      }
     });
   }, []);
 

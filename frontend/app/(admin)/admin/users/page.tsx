@@ -144,12 +144,12 @@ export default function AdminUsersPage() {
             <p className="text-xs text-zinc-500">Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, total)} of {total}</p>
             <div className="flex gap-2">
               <button
-                onClick={() => { setPage(p => p - 1); fetchUsers(search, page - 1); }}
+                onClick={() => { const next = page - 1; setPage(next); fetchUsers(search, next); }}
                 disabled={page === 1}
                 className="px-3 py-1.5 text-xs border border-zinc-200 rounded-lg disabled:opacity-50 hover:bg-zinc-50 transition"
               >Previous</button>
               <button
-                onClick={() => { setPage(p => p + 1); fetchUsers(search, page + 1); }}
+                onClick={() => { const next = page + 1; setPage(next); fetchUsers(search, next); }}
                 disabled={page * 20 >= total}
                 className="px-3 py-1.5 text-xs border border-zinc-200 rounded-lg disabled:opacity-50 hover:bg-zinc-50 transition"
               >Next</button>

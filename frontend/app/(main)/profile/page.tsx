@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star, Pencil, X, Check, Trophy } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { usersApi } from '@/lib/api/users';
+import toast from 'react-hot-toast';
 
 interface EditForm {
   name: string;
@@ -61,11 +62,13 @@ export default function ProfilePage() {
         specialization: form.specialization || user.specialization,
         examDate: form.examDate || user.examDate,
       });
+      toast.success('Profile updated');
+      setShowEdit(false);
     } catch {
-      // silent fail — changes still reflected optimistically
+      toast.error('Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setShowEdit(false);
   };
 
   const SETTINGS = [

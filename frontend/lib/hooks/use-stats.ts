@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { usersApi, type UserStats } from '../api/users';
 
 const DUMMY_STATS: UserStats = {
@@ -18,7 +18,8 @@ export function useStats() {
     queryFn: () => usersApi.getStats(),
     staleTime: 5 * 60 * 1000,
     retry: 1,
-    placeholderData: DUMMY_STATS,
+    placeholderData: keepPreviousData,
+    initialData: DUMMY_STATS,
   });
 
   return {

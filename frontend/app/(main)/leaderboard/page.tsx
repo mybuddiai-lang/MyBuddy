@@ -61,8 +61,8 @@ function RankCard({ entry, tab, index }: { entry: LeaderEntry; tab: Tab; index: 
         entry.isCurrentUser
           ? 'bg-brand-50 border-brand-200 shadow-md'
           : isTop3
-          ? 'bg-white border-zinc-100 shadow-card'
-          : 'bg-white border-zinc-100'
+          ? 'bg-white dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700 shadow-card'
+          : 'bg-white dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700'
       }`}
     >
       {/* Rank */}
@@ -109,7 +109,9 @@ export default function LeaderboardPage() {
     queryKey: ['leaderboard', activeTab],
     queryFn: async () => {
       const res = await apiClient.get(`/users/leaderboard?sortBy=${activeTab}`);
-      return res.data as LeaderEntry[];
+      // TransformInterceptor wraps response: { success, data, timestamp }
+      const payload = res.data?.data ?? res.data;
+      return (Array.isArray(payload) ? payload : []) as LeaderEntry[];
     },
     retry: 0,
     staleTime: 5 * 60 * 1000,

@@ -20,7 +20,7 @@ export default function RootPage() {
   }, [isAuthenticated, isLoading, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center shadow-soft">
           <span className="text-white text-2xl font-bold">B</span>

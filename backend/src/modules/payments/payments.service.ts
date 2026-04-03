@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import axios from 'axios';
@@ -26,6 +26,7 @@ export class PaymentsService {
 
   async createStripeSession(userId: string, planType: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
     const plan = PLANS[planType];
     if (!plan) throw new BadRequestException('Invalid plan');
 
@@ -82,6 +83,7 @@ export class PaymentsService {
 
   async initializePaystack(userId: string, planType: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
     const plan = PLANS[planType + '_ngn'] || PLANS[planType];
     if (!plan) throw new BadRequestException('Invalid plan');
 
@@ -117,9 +119,9 @@ export class PaymentsService {
 
     const txn = response.data.data;
     if (txn.status === 'success') {
-      const payment = await this.prisma.payment.findFirst({ where: { providerPaymentId: reference } });
+      const payment = await this.prisma.payment.findFirst({ where: { providerPaymentId: reference, userId } });
       if (payment) {
-        await this.activateSubscription(userId, payment.planType, reference);
+        await this.activateSubscription(payment.userId, payment.planType, reference);
       }
     }
 

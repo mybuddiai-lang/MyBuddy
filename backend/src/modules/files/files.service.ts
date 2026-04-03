@@ -138,10 +138,11 @@ export class FilesService {
         data: { processingStatus: 'DONE', summary, content },
       });
 
-      this.eventEmitter.emit('note.processed', { noteId });
+      this.eventEmitter.emit('note.processed', { noteId, userId: note.userId });
     } catch (err) {
       this.logger.error('File processing error', err);
-      await this.prisma.note.update({ where: { id: noteId }, data: { processingStatus: 'FAILED' } });
+      const failed = await this.prisma.note.update({ where: { id: noteId }, data: { processingStatus: 'FAILED' }, select: { userId: true } });
+      this.eventEmitter.emit('note.failed', { noteId, userId: failed.userId });
     }
   }
 
