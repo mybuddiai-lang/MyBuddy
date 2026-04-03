@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-console.log('ENV URL:', process.env.NEXT_PUBLIC_API_URL);
-console.log('BASE URL:', BASE_URL);
+// Browser: route through the Next.js /api/backend proxy (reads NEXT_PUBLIC_API_URL at runtime on the server).
+// Server (SSR): call the backend directly using the env var.
+const BASE_URL =
+  typeof window !== 'undefined'
+    ? '/api/backend'
+    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api');
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

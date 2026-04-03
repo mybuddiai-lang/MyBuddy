@@ -18,5 +18,6 @@ RUN pnpm install --frozen-lockfile --prod
 COPY prisma ./prisma
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
+COPY entrypoint.js ./entrypoint.js
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && echo 'Migrations OK' || echo 'WARNING: Migrations failed — check DATABASE_URL'; node dist/main"]
+CMD ["node", "entrypoint.js"]

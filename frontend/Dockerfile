@@ -4,9 +4,7 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-# Accept backend URL as build-time arg so it gets baked into the Next.js bundle
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# NEXT_PUBLIC_API_URL is read at runtime by the /api/backend proxy route — no need to bake at build time
 ARG NEXT_PUBLIC_APP_NAME=Buddi
 ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 RUN pnpm run build

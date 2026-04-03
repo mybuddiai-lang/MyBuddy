@@ -45,7 +45,6 @@ export default function SignupPage() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-console.log('ENV URL:', process.env.NEXT_PUBLIC_API_URL);
 
       const data = await authApi.register({
         name: form.name,
@@ -103,7 +102,7 @@ console.log('ENV URL:', process.env.NEXT_PUBLIC_API_URL);
 
                 {/* Google OAuth */}
                 <a
-                  href={`${process.env.NEXT_PUBLIC_API_URL}/auth/google`}
+                  href="/api/backend/auth/google"
                   className="w-full flex items-center justify-center gap-3 py-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition shadow-sm"
                 >
                   <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
