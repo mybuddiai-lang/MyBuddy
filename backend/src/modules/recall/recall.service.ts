@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 /**
  * SM-2 Spaced Repetition Algorithm
@@ -45,7 +46,10 @@ function ratingToQuality(result: string): number {
 
 @Injectable()
 export class RecallService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private analyticsService: AnalyticsService,
+  ) {}
 
   async getDueCards(userId: string) {
     // Get note chunks that are due for review (nextReviewAt <= now or never reviewed)
@@ -166,6 +170,12 @@ export class RecallService {
       where: { id: userId },
       data: { studyStreak: { increment: 1 }, lastActiveAt: new Date() },
     });
+
+    this.analyticsService.track(userId, 'recall_session_complete', {
+      sessionId,
+      cardsReviewed: session.cardsReviewed,
+      correctAnswers: session.correctAnswers,
+    }).catch(() => {});
 
     return { message: 'Session complete', cardsReviewed: session.cardsReviewed };
   }

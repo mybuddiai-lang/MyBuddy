@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class FilesService {
@@ -17,6 +18,7 @@ export class FilesService {
     private aiService: AiService,
     private config: ConfigService,
     private eventEmitter: EventEmitter2,
+    private analyticsService: AnalyticsService,
   ) {
     this.bucket = config.get<string>('AWS_S3_BUCKET', 'buddi-uploads');
     this.s3 = new S3Client({
@@ -63,6 +65,12 @@ export class FilesService {
       this.logger.error(`File processing failed for ${note.id}`, err),
     );
 
+    this.analyticsService.track(userId, 'note_uploaded', {
+      noteId: note.id,
+      fileType: fileType,
+      filename: file.originalname,
+    }).catch(() => {});
+
     return note;
   }
 
@@ -75,9 +83,19 @@ export class FilesService {
       if (mimetype === 'text/plain') {
         content = buffer.toString('utf-8');
       } else if (mimetype === 'application/pdf') {
-        content = `[PDF content extracted from note ${noteId}]`;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const pdfParse = require('pdf-parse');
+          const parsed = await pdfParse(buffer);
+          content = parsed.text || '';
+          this.logger.log(`PDF parsed: ${content.length} chars extracted from note ${noteId}`);
+        } catch (pdfErr) {
+          this.logger.warn(`PDF parse failed for note ${noteId}, using fallback`, pdfErr);
+          content = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\t]/g, ' ').trim();
+        }
       } else {
-        content = `[Image content from note ${noteId}]`;
+        // For images: pass a placeholder — real OCR would use AWS Textract / Google Vision
+        content = `[Image upload: ${noteId}. OCR processing not yet configured.]`;
       }
 
       // Generate AI summary and facts

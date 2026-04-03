@@ -65,9 +65,10 @@ export default function CommunityPage() {
       communityApi.getMy().catch(() => null),
     ]).then(([allRaw, myRaw]) => {
       if (!allRaw && !myRaw) return; // API unavailable — keep mock data
-      const all = (allRaw as any)?.data ?? [];
-      const myIds = new Set(((myRaw as any)?.data ?? []).map((p: any) => p.id));
-      if (all.length > 0) {
+      const all: any[] = (allRaw as any)?.data?.data ?? (allRaw as any)?.data ?? [];
+      const myList: any[] = (myRaw as any)?.data?.data ?? (myRaw as any)?.data ?? [];
+      const myIds = new Set(Array.isArray(myList) ? myList.map((p: any) => p.id) : []);
+      if (Array.isArray(all) && all.length > 0) {
         setPods(all.map((p: any) => ({
           ...p,
           field: p.field || p.subjectFilter || 'General',
@@ -138,8 +139,8 @@ export default function CommunityPage() {
     <div className="px-4 py-4 space-y-4 pb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">Community</h1>
-          <p className="text-sm text-zinc-500">Study together, thrive together</p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Community</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Study together, thrive together</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -157,17 +158,17 @@ export default function CommunityPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search pods..."
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-zinc-100 rounded-xl p-1 gap-1">
+      <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1 gap-1">
         {(['my', 'discover'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
           >
             {tab === 'my' ? `My Pods (${myPods.length})` : `Discover (${discoverPods.length})`}
           </button>
@@ -185,7 +186,7 @@ export default function CommunityPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card"
+              className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 shadow-card"
             >
               <div className="flex items-start gap-3">
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${podColor}`}>
@@ -193,10 +194,10 @@ export default function CommunityPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-zinc-800 text-sm truncate">{pod.name}</p>
-                    <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full shrink-0">{pod.field || pod.subject}</span>
+                    <p className="font-semibold text-zinc-800 dark:text-zinc-100 text-sm truncate">{pod.name}</p>
+                    <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-2 py-0.5 rounded-full shrink-0">{pod.field || pod.subject}</span>
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{pod.description}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5 line-clamp-1">{pod.description}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-xs text-zinc-400 flex items-center gap-1">
                       <Users size={10} /> {pod.memberCount} members
@@ -254,28 +255,28 @@ export default function CommunityPage() {
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="w-full bg-white rounded-t-3xl p-6 space-y-4"
+            className="w-full bg-white dark:bg-zinc-900 rounded-t-3xl p-6 space-y-4 border-t border-zinc-100 dark:border-zinc-800"
             onClick={e => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto" />
-            <h2 className="text-lg font-bold text-zinc-900">Create Study Pod</h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Create Study Pod</h2>
             <input
               type="text"
               value={newPodName}
               onChange={e => setNewPodName(e.target.value)}
               placeholder="Pod name (e.g. MBBS Finals 2026)"
-              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+              className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
             />
             <input
               type="text"
               value={newPodSubject}
               onChange={e => setNewPodSubject(e.target.value)}
               placeholder="Subject / field (e.g. Medicine, Law)"
-              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+              className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
             />
-            <p className="text-xs text-zinc-400">Your pod will be public by default. You can make it private after creation.</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Your pod will be public by default. You can make it private after creation.</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-50 transition">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">Cancel</button>
               <button
                 onClick={handleCreate}
                 disabled={creating}

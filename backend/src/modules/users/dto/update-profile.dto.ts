@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDateString, IsInt, Min, Max, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsInt, Min, Max, IsBoolean, MinLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -14,4 +14,6 @@ export class UpdateProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() notificationsEnabled?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(24) studyGoalHours?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(200) weeklyGoalCards?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() currentPassword?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(8) newPassword?: string;
 }

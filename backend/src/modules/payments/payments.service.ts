@@ -20,7 +20,7 @@ export class PaymentsService {
     private config: ConfigService,
   ) {
     this.stripe = new Stripe(this.config.get<string>('STRIPE_SECRET_KEY', ''), {
-      apiVersion: '2024-09-30.acacia',
+      apiVersion: '2025-02-24.acacia',
     });
   }
 

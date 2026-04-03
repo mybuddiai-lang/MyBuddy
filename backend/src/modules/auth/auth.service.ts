@@ -5,6 +5,8 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { EmailService } from '../email/email.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +14,8 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private emailService: EmailService,
+    private analyticsService: AnalyticsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -34,6 +38,8 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
+    this.emailService.sendWelcome(user.email, user.name).catch(() => {});
+    this.analyticsService.track(user.id, 'user_register', { school: user.school }).catch(() => {});
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -46,14 +52,44 @@ export class AuthService {
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
     const tokens = await this.generateTokens(user.id, user.email, user.role);
+    this.analyticsService.track(user.id, 'user_login').catch(() => {});
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) return null;
+    if (!user || !user.passwordHash) return null;
     const valid = await bcrypt.compare(password, user.passwordHash);
     return valid ? user : null;
+  }
+
+  async validateOrCreateGoogleUser(profile: any) {
+    const email: string = profile.emails?.[0]?.value;
+    const name: string = profile.displayName || profile.name?.givenName || 'Student';
+    const googleId: string = profile.id;
+
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ googleId }, { email }] },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: { email, name, googleId, passwordHash: null, profile: { create: {} } },
+      });
+      this.emailService.sendWelcome(user.email, user.name).catch(() => {});
+      this.analyticsService.track(user.id, 'user_register', { method: 'google' }).catch(() => {});
+    } else if (!user.googleId) {
+      user = await this.prisma.user.update({ where: { id: user.id }, data: { googleId } });
+    }
+
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
+    this.analyticsService.track(user.id, 'user_login', { method: 'google' }).catch(() => {});
+    return user;
+  }
+
+  async googleLogin(user: any) {
+    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    return { user: this.sanitizeUser(user), ...tokens };
   }
 
   async refreshToken(token: string) {
@@ -81,8 +117,7 @@ export class AuthService {
         { sub: user.id, type: 'password_reset' },
         { expiresIn: '1h' },
       );
-      // TODO: send resetToken via email service
-      this.logResetToken(user.email, resetToken);
+      this.emailService.sendPasswordReset(user.email, resetToken, user.name).catch(() => {});
     }
     return { message: 'If this email is registered, a reset link has been sent.' };
   }
@@ -98,14 +133,9 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  private logResetToken(email: string, token: string) {
-    // Development helper — remove in production
-    console.log(`[ForgotPassword] Token for ${email}: ${token}`);
-  }
-
-  private async generateTokens(userId: string, email: string, role: string) {
+  async generateTokens(userId: string, email: string, role: string) {
     const payload = { sub: userId, email, role };
-    const accessToken = this.jwt.sign(payload, { expiresIn: '15m' });
+    const accessToken = this.jwt.sign(payload, { expiresIn: '7d' });
     const refreshTokenValue = this.jwt.sign(payload, {
       secret: this.config.get('JWT_REFRESH_SECRET', 'buddi-refresh-secret'),
       expiresIn: '30d',
@@ -122,7 +152,7 @@ export class AuthService {
     return { accessToken, refreshToken: refreshTokenValue };
   }
 
-  private sanitizeUser(user: any) {
+  sanitizeUser(user: any) {
     const { passwordHash, ...safe } = user;
     return safe;
   }

@@ -66,14 +66,14 @@ export default function RecallPage() {
           {accuracy}% accuracy — {accuracy >= 70 ? "You're crushing it!" : accuracy >= 40 ? "Keep practising, you're improving!" : "Review these topics again soon."}
         </p>
         <div className="grid grid-cols-3 gap-4 mt-8 w-full max-w-xs">
-          {[
-            ['Easy', scores.correct, 'emerald'],
-            ['Medium', scores.partial, 'amber'],
-            ['Hard', scores.incorrect, 'red'],
-          ].map(([label, count, color]) => (
-            <div key={label as string} className={`bg-${color}-50 rounded-2xl p-4 text-center`}>
-              <p className={`text-2xl font-bold text-${color}-600`}>{count as number}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">{label as string}</p>
+          {([
+            { label: 'Easy', count: scores.correct, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+            { label: 'Medium', count: scores.partial, bg: 'bg-amber-50', text: 'text-amber-600' },
+            { label: 'Hard', count: scores.incorrect, bg: 'bg-red-50', text: 'text-red-600' },
+          ] as const).map(({ label, count, bg, text }) => (
+            <div key={label} className={`${bg} rounded-2xl p-4 text-center`}>
+              <p className={`text-2xl font-bold ${text}`}>{count}</p>
+              <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
             </div>
           ))}
         </div>

@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, RefreshCcw } from 'lucide-react';
+import { Send, Paperclip, X, FileText, Image, Mic } from 'lucide-react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useChatStore } from '@/lib/store/chat.store';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { useSlides } from '@/lib/hooks/use-slides';
 import type { Message } from '@/components/chat/message-bubble';
 
 const SUGGESTED_PROMPTS = [
@@ -32,11 +33,20 @@ const DEMO_MESSAGES: Message[] = [
   },
 ];
 
+const FILE_ICONS: Record<string, React.ReactNode> = {
+  PDF: <FileText size={14} className="text-red-500" />,
+  IMAGE: <Image size={14} className="text-blue-500" />,
+  VOICE: <Mic size={14} className="text-green-500" />,
+  TEXT: <FileText size={14} className="text-zinc-500" />,
+};
+
 export default function ChatPage() {
   const { messages, isTyping, sendMessage, loadHistory } = useChatStore();
   const { user } = useAuthStore();
+  const { notes } = useSlides();
   const [input, setInput] = useState('');
   const [showDemo, setShowDemo] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,6 +83,13 @@ export default function ChatPage() {
     }
   };
 
+  const handleAttachNote = (noteTitle: string) => {
+    const prefix = `Let's review my notes on "${noteTitle}". `;
+    setInput(prev => prev.startsWith(prefix) ? prev : prefix + prev);
+    setShowAttach(false);
+    textareaRef.current?.focus();
+  };
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     e.target.style.height = 'auto';
@@ -88,8 +105,8 @@ export default function ChatPage() {
             <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center mb-4">
               <span className="text-3xl">🤝</span>
             </div>
-            <h3 className="font-semibold text-zinc-800 text-lg">Hey {user?.name?.split(' ')[0] || 'there'}!</h3>
-            <p className="text-zinc-500 text-sm mt-2 max-w-xs">
+            <h3 className="font-semibold text-zinc-800 dark:text-zinc-100 text-lg">Hey {user?.name?.split(' ')[0] || 'there'}!</h3>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-2 max-w-xs">
               I'm Buddi, your academic resilience companion. I'm here to help you study smarter and stay well.
             </p>
             <div className="mt-6 w-full max-w-sm space-y-2">
@@ -97,7 +114,7 @@ export default function ChatPage() {
                 <button
                   key={prompt}
                   onClick={() => { setInput(prompt); textareaRef.current?.focus(); }}
-                  className="w-full text-left px-4 py-3 rounded-xl bg-white border border-zinc-100 text-sm text-zinc-700 hover:border-brand-200 hover:bg-brand-50 transition"
+                  className="w-full text-left px-4 py-3 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-200 hover:border-brand-200 dark:hover:border-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition"
                 >
                   {prompt}
                 </button>
@@ -108,9 +125,9 @@ export default function ChatPage() {
           <>
             {showDemo && (
               <div className="flex items-center gap-2 mb-3 px-2">
-                <div className="flex-1 h-px bg-zinc-100" />
-                <span className="text-xs text-zinc-400 shrink-0">Sample conversation</span>
-                <div className="flex-1 h-px bg-zinc-100" />
+                <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800" />
+                <span className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0">Sample conversation</span>
+                <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800" />
               </div>
             )}
             <AnimatePresence initial={false}>
@@ -129,10 +146,56 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Attach slide picker */}
+      <AnimatePresence>
+        {showAttach && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="mx-4 mb-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-lg overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Attach a note</p>
+              <button onClick={() => setShowAttach(false)} className="text-zinc-400 hover:text-zinc-600 transition">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="max-h-48 overflow-y-auto">
+              {notes.filter(n => n.processingStatus === 'DONE').length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-zinc-500">No processed notes yet.</p>
+                  <p className="text-xs text-zinc-400 mt-1">Upload slides first, then attach them here.</p>
+                </div>
+              ) : (
+                notes.filter(n => n.processingStatus === 'DONE').map(note => (
+                  <button
+                    key={note.id}
+                    onClick={() => handleAttachNote(note.title)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition text-left border-b border-zinc-50 dark:border-zinc-800 last:border-0"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-zinc-50 flex items-center justify-center shrink-0 border border-zinc-100">
+                      {FILE_ICONS[note.fileType] || <FileText size={14} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-800 truncate">{note.title}</p>
+                      {note.summary && <p className="text-xs text-zinc-400 truncate">{note.summary}</p>}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input bar */}
-      <div className="px-4 py-3 bg-white border-t border-zinc-100">
-        <div className="flex items-end gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
-          <button className="text-zinc-400 hover:text-zinc-600 mb-1.5 transition shrink-0">
+      <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="flex items-end gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
+          <button
+            onClick={() => setShowAttach(v => !v)}
+            className={`mb-1.5 transition shrink-0 ${showAttach ? 'text-brand-500' : 'text-zinc-400 hover:text-zinc-600'}`}
+          >
             <Paperclip size={18} />
           </button>
           <textarea
@@ -142,7 +205,7 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="Message Buddi..."
             rows={1}
-            className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed"
+            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed"
             style={{ maxHeight: '120px' }}
           />
           <button
@@ -153,7 +216,7 @@ export default function ChatPage() {
             <Send size={14} className={input.trim() ? 'text-white' : 'text-zinc-400'} />
           </button>
         </div>
-        <p className="text-center text-xs text-zinc-400 mt-2">Buddi is an AI companion. Not a substitute for professional advice.</p>
+        <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-2">Buddi is an AI companion. Not a substitute for professional advice.</p>
       </div>
     </div>
   );

@@ -8,8 +8,8 @@ export function Card({ variant = 'default', className, children, ...props }: Car
   return (
     <div
       className={clsx(
-        'bg-white rounded-2xl border',
-        variant === 'default' ? 'border-zinc-100 shadow-card' : 'border-zinc-100 shadow-card-hover',
+        'bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800',
+        variant === 'default' ? 'shadow-card' : 'shadow-card-hover',
         className
       )}
       {...props}

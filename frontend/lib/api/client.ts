@@ -29,11 +29,17 @@ apiClient.interceptors.response.use(
         if (!refreshToken) throw new Error('No refresh token');
         const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
         localStorage.setItem('buddi_access_token', data.data.accessToken);
+        if (data.data.refreshToken) {
+          localStorage.setItem('buddi_refresh_token', data.data.refreshToken);
+        }
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
         return apiClient(original);
       } catch {
         localStorage.removeItem('buddi_access_token');
         localStorage.removeItem('buddi_refresh_token');
+        // Clear Zustand persisted auth state so middleware cookie check doesn't bounce back
+        localStorage.removeItem('buddi-auth');
+        document.cookie = 'buddi_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
         window.location.href = '/login';
       }
     }

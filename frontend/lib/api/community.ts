@@ -32,24 +32,13 @@ export interface CreatePostDto {
 }
 
 export const communityApi = {
-  getAll: () =>
-    apiClient.get<Community[]>('/community').then(r => r.data),
-
-  getMy: () =>
-    apiClient.get<Community[]>('/community/my').then(r => r.data),
-
-  create: (data: CreateCommunityDto) =>
-    apiClient.post<Community>('/community', data).then(r => r.data),
-
-  join: (communityId: string) =>
-    apiClient.post(`/community/${communityId}/join`).then(r => r.data),
-
-  leave: (communityId: string) =>
-    apiClient.delete(`/community/${communityId}/leave`).then(r => r.data),
-
-  getPosts: (communityId: string) =>
-    apiClient.get<CommunityPost[]>(`/community/${communityId}/posts`).then(r => r.data),
-
+  // All methods return the full axios response so callers can do res?.data to get the transform wrapper's data field
+  getAll: () => apiClient.get('/community'),
+  getMy: () => apiClient.get('/community/my'),
+  create: (data: CreateCommunityDto) => apiClient.post('/community', data),
+  join: (communityId: string) => apiClient.post(`/community/${communityId}/join`),
+  leave: (communityId: string) => apiClient.delete(`/community/${communityId}/leave`),
+  getPosts: (communityId: string) => apiClient.get(`/community/${communityId}/posts`),
   createPost: (communityId: string, data: CreatePostDto) =>
-    apiClient.post<CommunityPost>(`/community/${communityId}/posts`, data).then(r => r.data),
+    apiClient.post(`/community/${communityId}/posts`, data),
 };

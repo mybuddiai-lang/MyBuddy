@@ -3,30 +3,39 @@ import { apiClient } from './client';
 export interface Reminder {
   id: string;
   title: string;
-  body?: string;
-  type: 'SPACED_REPETITION' | 'EXAM_COUNTDOWN' | 'GENERAL' | 'BURNOUT_CHECK';
+  description?: string;
+  type: 'RECALL' | 'BURNOUT' | 'EXAM' | 'GENERAL';
   status: 'PENDING' | 'SENT' | 'COMPLETED' | 'CANCELLED';
-  scheduledAt: string;
+  scheduledAt: string;   // frontend alias for scheduledFor
+  scheduledFor?: string; // backend field name
   createdAt: string;
 }
 
 export interface CreateReminderDto {
   title: string;
-  body?: string;
+  description?: string;
   type?: Reminder['type'];
-  scheduledAt: string;
+  scheduledFor: string;
 }
 
 export const remindersApi = {
-  getAll: () =>
-    apiClient.get<Reminder[]>('/reminders').then(r => r.data),
+  getAll: async (): Promise<Reminder[]> => {
+    const { data } = await apiClient.get('/reminders');
+    const items: any[] = data?.data ?? data ?? [];
+    // Normalize scheduledFor → scheduledAt for frontend consistency
+    return items.map((r: any) => ({ ...r, scheduledAt: r.scheduledAt ?? r.scheduledFor }));
+  },
 
-  create: (data: CreateReminderDto) =>
-    apiClient.post<Reminder>('/reminders', data).then(r => r.data),
+  create: async (dto: CreateReminderDto): Promise<Reminder> => {
+    const { data } = await apiClient.post('/reminders', dto);
+    return data?.data ?? data;
+  },
 
-  complete: (reminderId: string) =>
-    apiClient.patch<Reminder>(`/reminders/${reminderId}/complete`).then(r => r.data),
+  complete: async (reminderId: string): Promise<void> => {
+    await apiClient.patch(`/reminders/${reminderId}/complete`);
+  },
 
-  delete: (reminderId: string) =>
-    apiClient.delete(`/reminders/${reminderId}`).then(r => r.data),
+  delete: async (reminderId: string): Promise<void> => {
+    await apiClient.delete(`/reminders/${reminderId}`);
+  },
 };

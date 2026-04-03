@@ -6,9 +6,11 @@ export interface RegisterDto {
   school?: string; department?: string; specialization?: string; examDate?: string;
 }
 export interface User {
-  id: string; name: string; email: string; school?: string; department?: string;
+  id: string; name: string; email: string; role: string;
+  school?: string; department?: string;
   specialization?: string; examDate?: string; subscriptionTier: string;
-  studyStreak: number; resilienceScore: number;
+  studyStreak: number; resilienceScore: number; sentimentBaseline?: number;
+  whatsappNumber?: string; lastActiveAt?: string;
 }
 
 export const authApi = {

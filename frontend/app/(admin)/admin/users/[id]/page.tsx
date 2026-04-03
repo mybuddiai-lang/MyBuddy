@@ -169,7 +169,7 @@ export default function AdminUserDetailPage() {
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-600">Sentiment Baseline</span>
             <Badge
-              variant={sentimentRisk === 'HIGH' ? 'danger' : sentimentRisk === 'MEDIUM' ? 'warning' : 'success'}
+              variant={sentimentRisk === 'HIGH' ? 'destructive' : sentimentRisk === 'MEDIUM' ? 'warning' : 'success'}
             >
               {sentimentRisk} RISK
             </Badge>

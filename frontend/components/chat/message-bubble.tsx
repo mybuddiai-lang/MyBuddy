@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   sentimentScore?: number;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 function getSentimentEmoji(score?: number): string {
@@ -26,7 +26,7 @@ export function MessageBubble({ message }: { message: Message }) {
       className={`flex items-end gap-2 ${isUser ? 'justify-end msg-user' : 'justify-start msg-assistant'} mb-1`}
     >
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-sm font-bold text-brand-600 shrink-0 mb-1">
+        <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center text-sm font-bold text-brand-600 dark:text-brand-400 shrink-0 mb-1">
           B
         </div>
       )}
@@ -36,14 +36,14 @@ export function MessageBubble({ message }: { message: Message }) {
           className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
             isUser
               ? 'bg-brand-500 text-white rounded-br-sm'
-              : 'bg-white border border-zinc-100 text-zinc-800 rounded-bl-sm shadow-card'
+              : 'bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 rounded-bl-sm shadow-card'
           }`}
         >
           {message.content}
         </div>
         <div className={`flex items-center gap-1.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] text-zinc-400">
-            {format(message.createdAt, 'HH:mm')}
+          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+            {isValid(new Date(message.createdAt)) ? format(new Date(message.createdAt), 'HH:mm') : ''}
           </span>
           {!isUser && message.sentimentScore !== undefined && (
             <span className="text-xs">{getSentimentEmoji(message.sentimentScore)}</span>

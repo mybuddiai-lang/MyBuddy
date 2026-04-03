@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -17,7 +18,18 @@ export class UsersService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const { avatarUrl, bio, timezone, notificationsEnabled, studyGoalHours, weeklyGoalCards, ...userFields } = dto;
+    const { avatarUrl, bio, timezone, notificationsEnabled, studyGoalHours, weeklyGoalCards, currentPassword, newPassword, ...userFields } = dto;
+
+    // Handle password change
+    if (newPassword) {
+      if (!currentPassword) throw new BadRequestException('Current password is required to set a new one');
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+      const valid = user && await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) throw new UnauthorizedException('Current password is incorrect');
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    }
 
     const updates: any[] = [];
 
@@ -67,6 +79,15 @@ export class UsersService {
       studyStreak: user?.studyStreak ?? 0,
       resilienceScore: user?.resilienceScore ?? 50,
     };
+  }
+
+  async getActivity(userId: string, limit = 5) {
+    return this.prisma.analyticsEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 20),
+      select: { id: true, eventType: true, eventData: true, createdAt: true },
+    });
   }
 
   async deleteAccount(userId: string) {

@@ -38,7 +38,13 @@ export class RemindersService {
     if (!reminder) throw new NotFoundException('Reminder not found');
     return this.prisma.reminder.update({
       where: { id },
-      data: { ...data, scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : undefined },
+      data: {
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.scheduledFor !== undefined && { scheduledFor: new Date(data.scheduledFor) }),
+        ...(data.difficultyLevel !== undefined && { difficultyLevel: data.difficultyLevel }),
+        ...(data.type !== undefined && { type: data.type as any }),
+      },
     });
   }
 

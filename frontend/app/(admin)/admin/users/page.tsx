@@ -40,8 +40,14 @@ export default function AdminUsersPage() {
     setLoading(true);
     try {
       const res = await apiClient.get('/admin/users', { params: { page: pg, limit: 20, search: q || undefined } });
-      setUsers(res.data.data.users);
-      setTotal(res.data.data.total);
+      const payload = res.data?.data ?? res.data;
+      if (Array.isArray(payload)) {
+        setUsers(payload);
+        setTotal(payload.length);
+      } else if (payload?.users) {
+        setUsers(payload.users);
+        setTotal(payload.total ?? payload.users.length);
+      }
     } catch {} // keep dummy data on failure
     setLoading(false);
   };

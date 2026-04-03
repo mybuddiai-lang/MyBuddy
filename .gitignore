@@ -37,6 +37,10 @@ coverage/
 prisma/migrations/dev.db
 *.db
 
+# Claude Code — never commit
+CLAUDE.md
+.claude/
+
 # Misc
 .turbo
 *.tgz

@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -25,6 +25,11 @@ export class UsersController {
   @Get('stats')
   getStats(@CurrentUser('id') userId: string) {
     return this.usersService.getStats(userId);
+  }
+
+  @Get('activity')
+  getActivity(@CurrentUser('id') userId: string, @Query('limit') limit?: string) {
+    return this.usersService.getActivity(userId, limit ? parseInt(limit, 10) : 5);
   }
 
   @Delete('account')

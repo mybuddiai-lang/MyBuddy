@@ -41,8 +41,13 @@ export default function AdminAlertsPage() {
   useEffect(() => { fetchAlerts(showResolved); }, [showResolved]);
 
   const handleResolve = async (id: string) => {
-    await apiClient.post(`/admin/alerts/${id}/resolve`);
+    const previous = alerts;
     setAlerts(prev => prev.filter(a => a.id !== id));
+    try {
+      await apiClient.post(`/admin/alerts/${id}/resolve`);
+    } catch {
+      setAlerts(previous); // rollback on failure
+    }
   };
 
   return (

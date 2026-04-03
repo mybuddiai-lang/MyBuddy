@@ -18,6 +18,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RedisModule } from './modules/cache/redis.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { RedisModule } from './modules/cache/redis.module';
     HealthModule,
     NotificationsModule,
     RedisModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

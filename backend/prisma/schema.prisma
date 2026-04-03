@@ -1,12 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector", schema: "extensions"), uuid_ossp(map: "uuid-ossp", schema: "extensions")]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum SubscriptionTier {
@@ -88,7 +86,8 @@ model User {
   id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String           @unique
   name              String
-  passwordHash      String
+  passwordHash      String?
+  googleId          String?          @unique
   whatsappNumber    String?
   school            String?
   department        String?

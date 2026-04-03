@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
@@ -9,6 +10,7 @@ export class ChatService {
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
+    private analyticsService: AnalyticsService,
   ) {}
 
   async sendMessage(userId: string, dto: SendMessageDto) {
@@ -66,6 +68,8 @@ export class ChatService {
         lastActiveAt: new Date(),
       },
     });
+
+    this.analyticsService.track(userId, 'message_sent', { sentimentScore, contentLength: dto.content.length }).catch(() => {});
 
     return {
       id: assistantMessage.id,

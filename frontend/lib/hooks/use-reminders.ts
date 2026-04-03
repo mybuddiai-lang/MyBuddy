@@ -7,8 +7,8 @@ const DUMMY_REMINDERS: Reminder[] = [
   {
     id: 'r1',
     title: 'Review: Pharmacology — CNS Drugs',
-    body: 'Spaced repetition due — time to test yourself!',
-    type: 'SPACED_REPETITION',
+    description: 'Spaced repetition due — time to test yourself!',
+    type: 'RECALL',
     status: 'PENDING',
     scheduledAt: new Date().toISOString(),
     createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -16,7 +16,7 @@ const DUMMY_REMINDERS: Reminder[] = [
   {
     id: 'r2',
     title: 'Review: Anatomy Notes — Week 4',
-    type: 'SPACED_REPETITION',
+    type: 'RECALL',
     status: 'PENDING',
     scheduledAt: new Date(Date.now() + 7200000).toISOString(),
     createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
@@ -24,7 +24,7 @@ const DUMMY_REMINDERS: Reminder[] = [
   {
     id: 'r3',
     title: 'Exam in 14 days — start final review',
-    type: 'EXAM_COUNTDOWN',
+    type: 'EXAM',
     status: 'PENDING',
     scheduledAt: new Date(Date.now() + 86400000).toISOString(),
     createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
