@@ -41,6 +41,8 @@
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  /* Prevent blue flash on tap (native feel) */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -51,6 +53,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--background);
   color: var(--foreground);
+  /* Prevent pull-to-refresh on iOS and Android */
+  overscroll-behavior-y: none;
+  /* Prevent text selection during rapid taps */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Re-enable text selection for content areas */
+p, h1, h2, h3, h4, h5, h6, span, li, td, th, label,
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Smooth momentum scrolling on iOS */
+.overflow-y-auto, .overflow-y-scroll, [data-scroll] {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Instant touch response for buttons and interactive elements */
+button, a, [role="button"] {
+  touch-action: manipulation;
+  cursor: pointer;
 }
 
 /* Safe area for notched phones */

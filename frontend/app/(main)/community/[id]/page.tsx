@@ -870,18 +870,16 @@ export default function PodDetailPage() {
 
         {activeTab === 'polls' && (
           <>
-            {isAdmin && (
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowPollCreator(v => !v)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-full hover:bg-brand-100 transition"
-                >
-                  <Plus size={13} /> Create Poll
-                </button>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowPollCreator(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-full hover:bg-brand-100 transition"
+              >
+                <Plus size={13} /> Create Poll
+              </button>
+            </div>
 
-            {showPollCreator && isAdmin && (
+            {showPollCreator && (
               <PollCreator
                 communityId={id}
                 onCreated={poll => setPolls(prev => [poll, ...prev])}
@@ -893,7 +891,7 @@ export default function PodDetailPage() {
               <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
                 <BarChart2 size={32} className="mb-3 opacity-40" />
                 <p className="text-sm font-medium">No polls yet</p>
-                {isAdmin && <p className="text-xs mt-1">Create one above to get members voting</p>}
+                <p className="text-xs mt-1">Create one above to get members voting</p>
               </div>
             )}
 

@@ -1,7 +1,9 @@
-const CACHE_NAME = 'buddi-v3';
+const CACHE_NAME = 'buddi-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
 // Install: cache static assets
@@ -53,6 +55,24 @@ self.addEventListener('fetch', (event) => {
   if (isHtml) {
     event.respondWith(
       fetch(request).catch(() => caches.match('/offline'))
+    );
+    return;
+  }
+
+  // Next.js static chunks (/_next/static/): cache-first with long TTL
+  // These are content-hashed so stale cache is safe
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return res;
+        });
+      })
     );
     return;
   }

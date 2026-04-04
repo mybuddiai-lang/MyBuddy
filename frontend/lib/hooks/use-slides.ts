@@ -96,7 +96,11 @@ export function useSlides() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => slidesApi.delete(id),
+    mutationFn: async (id: string) => {
+      // Demo notes are local-only — no API call needed
+      if (id.startsWith('demo-')) return;
+      return slidesApi.delete(id);
+    },
     onMutate: (id) => {
       queryClient.setQueryData(['slides'], (old: Note[] = []) => old.filter(n => n.id !== id));
     },

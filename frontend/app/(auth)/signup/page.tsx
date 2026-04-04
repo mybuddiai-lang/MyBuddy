@@ -17,10 +17,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { login, isAuthenticated } = useAuthStore();
   const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    if (isAuthenticated) router.replace('/home');
-  }, [isAuthenticated, router]);
+  const [hydrated, setHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -33,7 +30,17 @@ export default function SignupPage() {
     examDate: '',
   });
 
+  // Wait for Zustand to rehydrate from localStorage before checking auth
+  useEffect(() => { setHydrated(true); }, []);
+
+  useEffect(() => {
+    if (hydrated && isAuthenticated) router.replace('/home');
+  }, [hydrated, isAuthenticated, router]);
+
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  // Show nothing while hydrating to prevent flash of signup form for already-authed users
+  if (!hydrated) return null;
 
   const extractErrorMessage = (err: any, fallback: string): string => {
     const msg = err?.response?.data?.message;

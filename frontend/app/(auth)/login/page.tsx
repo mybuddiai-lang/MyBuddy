@@ -16,10 +16,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Wait for Zustand to rehydrate from localStorage before checking auth
+  useEffect(() => { setHydrated(true); }, []);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/home');
-  }, [isAuthenticated, router]);
+    if (hydrated && isAuthenticated) router.replace('/home');
+  }, [hydrated, isAuthenticated, router]);
+
+  // Show nothing while hydrating to prevent flash of login form for already-authed users
+  if (!hydrated) return null;
 
   const extractErrorMessage = (err: any, fallback: string): string => {
     const msg = err?.response?.data?.message;
