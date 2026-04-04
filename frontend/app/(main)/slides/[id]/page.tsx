@@ -24,8 +24,8 @@ export default function NoteDetailPage() {
 
   useEffect(() => {
     const DUMMY_DETAIL: Record<string, NoteDetail> = {
-      '1': {
-        id: '1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', processingStatus: 'DONE',
+      'demo-1': {
+        id: 'demo-1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', processingStatus: 'DONE',
         masteryLevel: 3, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
         summary: 'Covers dopamine pathways, antipsychotics (haloperidol, clozapine), SSRIs, and mood stabilizers including lithium and valproate.',
         chunks: [
@@ -34,16 +34,54 @@ export default function NoteDetailPage() {
           { id: 'c3', chunkIndex: 2, content: 'Q: What is serotonin syndrome?\nA: A potentially life-threatening condition caused by excess serotonergic activity. Triad: mental status changes, autonomic instability, and neuromuscular abnormalities.' },
         ],
       },
-      '2': {
-        id: '2', title: 'Anatomy Notes — Week 4', fileType: 'IMAGE', processingStatus: 'DONE',
-        masteryLevel: 1, createdAt: new Date(Date.now() - 86400000).toISOString(),
+      'demo-2': {
+        id: 'demo-2', title: 'Anatomy Notes — Upper Limb', fileType: 'IMAGE', processingStatus: 'DONE',
+        masteryLevel: 2, createdAt: new Date(Date.now() - 86400000).toISOString(),
         summary: 'Upper limb musculature and brachial plexus with clinical correlations for nerve injuries.',
         chunks: [
           { id: 'c4', chunkIndex: 0, content: 'Q: What muscles are innervated by the radial nerve?\nA: The radial nerve innervates the triceps, brachioradialis, and all wrist/finger extensors. Injury causes wrist drop.' },
           { id: 'c5', chunkIndex: 1, content: 'Q: What is the clinical sign of median nerve injury at the wrist?\nA: Loss of thumb opposition and thenar wasting (ape hand deformity). Loss of sensation in lateral 3½ fingers.' },
+          { id: 'c6', chunkIndex: 2, content: 'Q: What nerve is tested by pinching the first dorsal web space?\nA: The deep branch of the radial nerve (posterior interosseous nerve). Weakness in finger extension but not wrist extension.' },
+        ],
+      },
+      'demo-3': {
+        id: 'demo-3', title: 'Contract Law — Essentials', fileType: 'PDF', processingStatus: 'DONE',
+        masteryLevel: 4, createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+        summary: 'Offer, acceptance, consideration, privity and breach remedies — the foundational pillars of contract law.',
+        chunks: [
+          { id: 'c7', chunkIndex: 0, content: 'Q: What are the essential elements of a valid contract?\nA: Offer, acceptance, consideration, intention to create legal relations, and capacity. All must be present for enforceability.' },
+          { id: 'c8', chunkIndex: 1, content: 'Q: What is the rule in Carlill v Carbolic Smoke Ball Co?\nA: An advertisement can constitute a binding unilateral offer if it is sufficiently certain and the offeror shows intention to be bound, e.g., by depositing money.' },
+          { id: 'c9', chunkIndex: 2, content: 'Q: What is the postal rule?\nA: Acceptance of a contract is complete when the letter is posted, not when received — established in Adams v Lindsell (1818).' },
+        ],
+      },
+      'demo-4': {
+        id: 'demo-4', title: 'Thermodynamics Lecture 3', fileType: 'PDF', processingStatus: 'DONE',
+        masteryLevel: 1, createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+        summary: 'Laws of thermodynamics, entropy, Carnot cycle and efficiency — core concepts for engineering exams.',
+        chunks: [
+          { id: 'c10', chunkIndex: 0, content: 'Q: State the Second Law of Thermodynamics.\nA: Heat cannot spontaneously flow from a colder body to a hotter body. Entropy of an isolated system always increases over time.' },
+          { id: 'c11', chunkIndex: 1, content: 'Q: What is the Carnot efficiency formula?\nA: η = 1 − (T_cold / T_hot), where temperatures are in Kelvin. It represents the maximum possible efficiency of any heat engine.' },
+          { id: 'c12', chunkIndex: 2, content: 'Q: What is entropy?\nA: A measure of disorder or randomness in a system. In a reversible process dS = dQ/T; in irreversible processes entropy always increases.' },
+        ],
+      },
+      'demo-5': {
+        id: 'demo-5', title: 'Voice note — Cardiology', fileType: 'VOICE', processingStatus: 'DONE',
+        masteryLevel: 2, createdAt: new Date(Date.now() - 3600000).toISOString(),
+        summary: 'Heart sounds, murmurs, cardiac output and Frank-Starling mechanism — high-yield for clinical exams.',
+        chunks: [
+          { id: 'c13', chunkIndex: 0, content: 'Q: What causes S3 heart sound?\nA: S3 (ventricular gallop) is caused by rapid ventricular filling in early diastole — normal in young people, pathological in adults (suggests heart failure or volume overload).' },
+          { id: 'c14', chunkIndex: 1, content: 'Q: What is the Frank-Starling law?\nA: As venous return (preload) increases, the heart stretches and contracts more forcefully up to a point — the heart pumps what it receives.' },
+          { id: 'c15', chunkIndex: 2, content: 'Q: What murmur is classic for mitral stenosis?\nA: A low-pitched, rumbling mid-diastolic murmur best heard at the apex with the patient in left lateral decubitus, often with an opening snap.' },
         ],
       },
     };
+
+    // Skip API for demo notes — serve locally
+    if (id.startsWith('demo-')) {
+      setNote(DUMMY_DETAIL[id] ?? null);
+      setLoading(false);
+      return;
+    }
 
     slidesApi.getById(id).then(data => {
       setNote(data as NoteDetail);

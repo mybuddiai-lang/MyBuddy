@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, HttpCode, HttpStatus, Patch, Req, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, UseGuards, HttpCode, HttpStatus, Patch, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Response } from 'express';
@@ -74,17 +74,34 @@ export class AuthController {
   @Get('google')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  googleAuth() {
-    // Passport redirects to Google — no body needed
+  googleAuth(@Query('redirect') _redirect?: string) {
+    // Passport redirects to Google — the redirect origin is passed as `state` via the guard options
   }
 
   @Public()
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback' })
-  async googleCallback(@Req() req: any, @Res() res: Response) {
+  async googleCallback(
+    @Req() req: any,
+    @Res() res: Response,
+    @Query('redirect') redirectOrigin?: string,
+  ) {
     const { user, accessToken, refreshToken } = await this.authService.googleLogin(req.user);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    // Support comma-separated FRONTEND_URL list (e.g. staging + production)
+    const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    // Use the origin the user came from (passed as ?redirect=... query param),
+    // but only if it's in the allow-list to prevent open redirect attacks.
+    // Fall back to the first configured frontend URL.
+    const frontendUrl =
+      (redirectOrigin && allowedOrigins.find((o) => o === decodeURIComponent(redirectOrigin))) ||
+      allowedOrigins[0];
+
     const encoded = encodeURIComponent(JSON.stringify(user));
     res.redirect(
       `${frontendUrl}/google/callback?access_token=${accessToken}&refresh_token=${refreshToken}&user=${encoded}`,

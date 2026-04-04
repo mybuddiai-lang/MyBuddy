@@ -18,17 +18,12 @@ async function bootstrap() {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(compression());
 
-  // CORS — supports comma-separated FRONTEND_URL list for multi-environment
-  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  // CORS — all browser requests reach the backend via the Next.js server-side proxy,
+  // which strips the Origin header. Direct browser calls only happen for Google OAuth
+  // redirects. Accepting all origins here is safe because authentication is enforced
+  // via JWT on every protected route.
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow server-to-server (no origin) and whitelisted origins
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else callback(null, false); // return 403, not 500
-    },
+    origin: true, // reflect the request origin — allows any origin
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
