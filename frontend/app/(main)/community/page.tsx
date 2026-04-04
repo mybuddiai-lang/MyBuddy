@@ -91,15 +91,19 @@ export default function CommunityPage() {
     (p.field || p.subject || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleJoin = async (id: string) => {
-    // Optimistic update
-    setPods(prev => prev.map(p => p.id === id ? { ...p, isMember: true, memberCount: p.memberCount + 1 } : p));
+  const handleJoin = async (podId: string) => {
     try {
-      await communityApi.join(id);
+      const res = await communityApi.join(podId);
+      const data = (res as any)?.data;
+      if (data?.pending) {
+        toast.success('Join request sent! Waiting for admin approval.');
+      } else {
+        setPods(prev => prev.map(p => p.id === podId ? { ...p, isMember: true, memberCount: p.memberCount + 1 } : p));
+        toast.success('Joined the pod! 🎉');
+      }
     } catch {
-      // silent fail — UI already updated
+      toast.error('Could not join — try again');
     }
-    toast.success('Joined the pod! 🎉');
   };
 
   const handleCreate = async () => {

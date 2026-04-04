@@ -55,3 +55,4 @@ frontend/package-lock.json
 
 # Scratch files
 julia.py
+.vercel

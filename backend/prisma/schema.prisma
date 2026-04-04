@@ -59,6 +59,18 @@ enum CommunityRole {
   ADMIN
 }
 
+enum AttachmentType {
+  FILE
+  IMAGE
+  VOICE
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PaymentProvider {
   STRIPE
   PAYSTACK
@@ -112,7 +124,11 @@ model User {
   communityPosts    CommunityPost[]
   postLikes         CommunityPostLike[]
   postComments      CommunityPostComment[]
+  postReplies       CommunityPostReply[]
   memberships       CommunityMember[]
+  polls             CommunityPoll[]
+  pollVotes         CommunityPollVote[]
+  joinRequests      JoinRequest[]
   payments          Payment[]
   subscription      Subscription?
   analyticsEvents   AnalyticsEvent[]
@@ -279,19 +295,22 @@ model RecallCard {
 }
 
 model Community {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  description   String?
-  createdBy     String   @db.Uuid
-  memberCount   Int      @default(1)
-  isPublic      Boolean  @default(true)
-  schoolFilter  String?
-  subjectFilter String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  description      String?
+  createdBy        String   @db.Uuid
+  memberCount      Int      @default(1)
+  isPublic         Boolean  @default(true)
+  requiresApproval Boolean  @default(false)
+  schoolFilter     String?
+  subjectFilter    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  members CommunityMember[]
-  posts   CommunityPost[]
+  members      CommunityMember[]
+  posts        CommunityPost[]
+  polls        CommunityPoll[]
+  joinRequests JoinRequest[]
 
   @@index([isPublic])
   @@map("communities")
@@ -312,19 +331,22 @@ model CommunityMember {
 }
 
 model CommunityPost {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  communityId   String   @db.Uuid
-  authorId      String   @db.Uuid
-  content       String
-  attachmentUrl String?
-  likesCount    Int      @default(0)
-  commentsCount Int      @default(0)
-  createdAt     DateTime @default(now())
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId    String         @db.Uuid
+  authorId       String         @db.Uuid
+  content        String
+  attachmentUrl  String?
+  attachmentType AttachmentType?
+  likesCount     Int            @default(0)
+  commentsCount  Int            @default(0)
+  repliesCount   Int            @default(0)
+  createdAt      DateTime       @default(now())
 
-  community Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  author    User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  community Community              @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author    User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes     CommunityPostLike[]
   comments  CommunityPostComment[]
+  replies   CommunityPostReply[]
 
   @@index([communityId, createdAt])
   @@map("community_posts")
@@ -356,6 +378,76 @@ model CommunityPostComment {
 
   @@index([postId, createdAt])
   @@map("community_post_comments")
+}
+
+model CommunityPostReply {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId         String          @db.Uuid
+  authorId       String          @db.Uuid
+  content        String
+  attachmentUrl  String?
+  attachmentType AttachmentType?
+  createdAt      DateTime        @default(now())
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("community_post_replies")
+}
+
+model CommunityPoll {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId String    @db.Uuid
+  authorId    String    @db.Uuid
+  question    String
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  community Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author    User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  options   CommunityPollOption[]
+
+  @@index([communityId, createdAt])
+  @@map("community_polls")
+}
+
+model CommunityPollOption {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pollId     String @db.Uuid
+  text       String
+  votesCount Int    @default(0)
+
+  poll  CommunityPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes CommunityPollVote[]
+
+  @@map("community_poll_options")
+}
+
+model CommunityPollVote {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  optionId String @db.Uuid
+  userId   String @db.Uuid
+
+  option CommunityPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, userId])
+  @@map("community_poll_votes")
+}
+
+model JoinRequest {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId String            @db.Uuid
+  userId      String            @db.Uuid
+  status      JoinRequestStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@map("join_requests")
 }
 
 model Payment {

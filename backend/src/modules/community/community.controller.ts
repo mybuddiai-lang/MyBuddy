@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CommunityService } from './community.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,11 +22,15 @@ export class CommunityController {
   }
 
   @Post()
-  create(@CurrentUser('id') userId: string, @Body() body: { name: string; description?: string; field?: string; isPrivate?: boolean }) {
+  create(
+    @CurrentUser('id') userId: string,
+    @Body() body: { name: string; description?: string; field?: string; isPrivate?: boolean; requiresApproval?: boolean },
+  ) {
     return this.communityService.create(userId, {
       name: body.name,
       description: body.description,
       isPublic: !body.isPrivate,
+      requiresApproval: body.requiresApproval,
       subjectFilter: body.field,
     });
   }
@@ -46,6 +50,57 @@ export class CommunityController {
     return this.communityService.leave(communityId, userId);
   }
 
+  // ─── Members ──────────────────────────────────────────────────────────────
+
+  @Get(':id/members')
+  @ApiOperation({ summary: 'Get all members of a community' })
+  getMembers(@Param('id') communityId: string) {
+    return this.communityService.getMembers(communityId);
+  }
+
+  @Patch(':id/members/:userId/role')
+  @ApiOperation({ summary: 'Assign role to a member (admin only)' })
+  assignRole(
+    @Param('id') communityId: string,
+    @Param('userId') targetUserId: string,
+    @CurrentUser('id') requestingUserId: string,
+    @Body('role') role: 'MEMBER' | 'MODERATOR' | 'ADMIN',
+  ) {
+    return this.communityService.assignRole(communityId, targetUserId, requestingUserId, role);
+  }
+
+  @Delete(':id/members/:userId')
+  @ApiOperation({ summary: 'Remove a member from a community (admin only)' })
+  removeMember(
+    @Param('id') communityId: string,
+    @Param('userId') targetUserId: string,
+    @CurrentUser('id') requestingUserId: string,
+  ) {
+    return this.communityService.removeMember(communityId, targetUserId, requestingUserId);
+  }
+
+  // ─── Join Requests ────────────────────────────────────────────────────────
+
+  @Get(':id/join-requests')
+  @ApiOperation({ summary: 'Get pending join requests (admin only)' })
+  getJoinRequests(@Param('id') communityId: string, @CurrentUser('id') userId: string) {
+    return this.communityService.getJoinRequests(communityId, userId);
+  }
+
+  @Post(':id/join-requests/:requestId/approve')
+  @ApiOperation({ summary: 'Approve a join request (admin only)' })
+  approveJoinRequest(@Param('requestId') requestId: string, @CurrentUser('id') userId: string) {
+    return this.communityService.approveJoinRequest(requestId, userId);
+  }
+
+  @Post(':id/join-requests/:requestId/reject')
+  @ApiOperation({ summary: 'Reject a join request (admin only)' })
+  rejectJoinRequest(@Param('requestId') requestId: string, @CurrentUser('id') userId: string) {
+    return this.communityService.rejectJoinRequest(requestId, userId);
+  }
+
+  // ─── Posts ────────────────────────────────────────────────────────────────
+
   @Get(':id/posts')
   getPosts(@Param('id') communityId: string) {
     return this.communityService.getPosts(communityId);
@@ -55,26 +110,20 @@ export class CommunityController {
   createPost(
     @Param('id') communityId: string,
     @CurrentUser('id') userId: string,
-    @Body() body: { content: string; attachmentUrl?: string },
+    @Body() body: { content: string; attachmentUrl?: string; attachmentType?: string },
   ) {
-    return this.communityService.createPost(communityId, userId, body.content, body.attachmentUrl);
+    return this.communityService.createPost(communityId, userId, body.content, body.attachmentUrl, body.attachmentType);
   }
 
   @Post(':communityId/posts/:postId/like')
   @ApiOperation({ summary: 'Like a community post' })
-  likePost(
-    @Param('postId') postId: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  likePost(@Param('postId') postId: string, @CurrentUser('id') userId: string) {
     return this.communityService.likePost(postId, userId);
   }
 
   @Delete(':communityId/posts/:postId/like')
   @ApiOperation({ summary: 'Unlike a community post' })
-  unlikePost(
-    @Param('postId') postId: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  unlikePost(@Param('postId') postId: string, @CurrentUser('id') userId: string) {
     return this.communityService.unlikePost(postId, userId);
   }
 
@@ -96,10 +145,65 @@ export class CommunityController {
 
   @Delete(':communityId/posts/:postId/comments/:commentId')
   @ApiOperation({ summary: 'Delete a comment' })
-  deleteComment(
-    @Param('commentId') commentId: string,
-    @CurrentUser('id') userId: string,
-  ) {
+  deleteComment(@Param('commentId') commentId: string, @CurrentUser('id') userId: string) {
     return this.communityService.deleteComment(commentId, userId);
+  }
+
+  // ─── Replies ──────────────────────────────────────────────────────────────
+
+  @Get(':communityId/posts/:postId/replies')
+  @ApiOperation({ summary: 'Get replies for a post' })
+  getReplies(@Param('postId') postId: string) {
+    return this.communityService.getReplies(postId);
+  }
+
+  @Post(':communityId/posts/:postId/replies')
+  @ApiOperation({ summary: 'Reply to a post (supports file/image/voice attachments)' })
+  createReply(
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { content: string; attachmentUrl?: string; attachmentType?: string },
+  ) {
+    return this.communityService.createReply(postId, userId, body.content, body.attachmentUrl, body.attachmentType);
+  }
+
+  @Delete(':communityId/posts/:postId/replies/:replyId')
+  @ApiOperation({ summary: 'Delete a reply' })
+  deleteReply(@Param('replyId') replyId: string, @CurrentUser('id') userId: string) {
+    return this.communityService.deleteReply(replyId, userId);
+  }
+
+  // ─── Polls ────────────────────────────────────────────────────────────────
+
+  @Get(':id/polls')
+  @ApiOperation({ summary: 'Get polls in a community' })
+  getPolls(@Param('id') communityId: string, @CurrentUser('id') userId: string) {
+    return this.communityService.getPolls(communityId, userId);
+  }
+
+  @Post(':id/polls')
+  @ApiOperation({ summary: 'Create a poll in a community' })
+  createPoll(
+    @Param('id') communityId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { question: string; options: string[]; endsAt?: string },
+  ) {
+    return this.communityService.createPoll(
+      communityId,
+      userId,
+      body.question,
+      body.options,
+      body.endsAt ? new Date(body.endsAt) : undefined,
+    );
+  }
+
+  @Post(':communityId/polls/:pollId/vote')
+  @ApiOperation({ summary: 'Vote on a poll option' })
+  votePoll(
+    @Param('pollId') pollId: string,
+    @CurrentUser('id') userId: string,
+    @Body('optionId') optionId: string,
+  ) {
+    return this.communityService.votePoll(pollId, optionId, userId);
   }
 }
