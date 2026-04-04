@@ -94,7 +94,7 @@ export default function CommunityPage() {
   const handleJoin = async (podId: string) => {
     try {
       const res = await communityApi.join(podId);
-      const data = (res as any)?.data;
+      const data = (res as any)?.data?.data;
       if (data?.pending) {
         toast.success('Join request sent! Waiting for admin approval.');
       } else {
@@ -127,7 +127,7 @@ export default function CommunityPage() {
     toast.success('Pod created! Share it with your classmates.');
     try {
       const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
-      const created = (res as any)?.data;
+      const created = (res as any)?.data?.data;
       if (created?.id) {
         setPods(prev => prev.map(p => p.id === optimisticPod.id ? { ...created, isMember: true, color: optimisticPod.color } : p));
       }

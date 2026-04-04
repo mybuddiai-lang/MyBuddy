@@ -66,7 +66,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
   useEffect(() => {
     communityApi.getReplies(communityId, postId)
-      .then((res: any) => setReplies(res?.data ?? []))
+      .then((res: any) => setReplies(res?.data?.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [communityId, postId]);
@@ -111,7 +111,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         content: optimistic.content,
         attachmentType: attachType ?? undefined,
       });
-      const created = (res as any)?.data;
+      const created = (res as any)?.data?.data;
       if (created?.id) {
         setReplies(prev => prev.map(r => r.id === optimistic.id ? created : r));
       }
@@ -280,8 +280,8 @@ function PollCreator({ communityId, onCreated, onClose }: { communityId: string;
     setSubmitting(true);
     try {
       const res = await communityApi.createPoll(communityId, { question: question.trim(), options: validOptions });
-      const created = (res as any)?.data;
-      if (created) onCreated({ ...created, myVotedOptionId: null, options: created.options.map((o: any) => ({ ...o, votedByMe: false })) });
+      const created = (res as any)?.data?.data;
+      if (created) onCreated({ ...created, myVotedOptionId: null, options: (created.options ?? []).map((o: any) => ({ ...o, votedByMe: false })) });
       onClose();
     } catch {
       // silent
@@ -513,7 +513,7 @@ export default function PodDetailPage() {
     // Posts
     communityApi.getPosts(id)
       .then((res: any) => {
-        const apiPosts: CommunityPost[] = res?.data ?? [];
+        const apiPosts: CommunityPost[] = res?.data?.data ?? [];
         setPosts(apiPosts.map(p => ({ ...p, liked: false })));
       })
       .catch(() => {});
@@ -521,7 +521,7 @@ export default function PodDetailPage() {
     // Pod meta (includes myRole)
     communityApi.getAll()
       .then((res: any) => {
-        const all: any[] = res?.data ?? [];
+        const all: any[] = res?.data?.data ?? [];
         const found = all.find((p: any) => p.id === id);
         if (found) {
           setPod({
@@ -538,16 +538,16 @@ export default function PodDetailPage() {
 
     // Polls
     communityApi.getPolls(id)
-      .then((res: any) => setPolls(res?.data ?? []))
+      .then((res: any) => setPolls(res?.data?.data ?? []))
       .catch(() => {});
   }, [id]);
 
   // Load members & join requests for admin
   useEffect(() => {
     if (!isAdmin) return;
-    communityApi.getMembers(id).then((res: any) => setMembers(res?.data ?? [])).catch(() => {});
+    communityApi.getMembers(id).then((res: any) => setMembers(res?.data?.data ?? [])).catch(() => {});
     if (pod.requiresApproval) {
-      communityApi.getJoinRequests(id).then((res: any) => setJoinRequests(res?.data ?? [])).catch(() => {});
+      communityApi.getJoinRequests(id).then((res: any) => setJoinRequests(res?.data?.data ?? [])).catch(() => {});
     }
   }, [id, isAdmin, pod.requiresApproval]);
 
@@ -590,7 +590,7 @@ export default function PodDetailPage() {
 
     try {
       const res = await communityApi.createPost(id, { content });
-      const created = (res as any)?.data;
+      const created = (res as any)?.data?.data;
       if (created?.id) {
         setPosts(prev => prev.map(p => p.id === optimistic.id ? { ...created, liked: false } : p));
       }
