@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OpenAIProvider } from './providers/openai.provider';
+import { AnthropicProvider } from './providers/anthropic.provider';
 
 const BUDDI_SYSTEM_PROMPT = `You are Buddi, a compassionate AI resilience companion and academic support partner for students.
 
@@ -24,7 +24,7 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
 
   constructor(
-    private openai: OpenAIProvider,
+    private anthropic: AnthropicProvider,
     private config: ConfigService,
   ) {}
 
@@ -35,19 +35,13 @@ export class AiService {
     userContext?: { name?: string; school?: string; department?: string; examDate?: Date },
   ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
     const systemPrompt = this.buildPersonalizedPrompt(userContext);
-    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory,
-      { role: 'user', content: userMessage },
-    ];
 
     try {
-      const result = await this.openai.chat(messages);
-      return {
-        content: result.content,
-        inputTokens: result.tokens,
-        outputTokens: 0,
-      };
+      const result = await this.anthropic.chat(
+        [...conversationHistory, { role: 'user', content: userMessage }],
+        systemPrompt,
+      );
+      return result;
     } catch (err) {
       this.logger.error('AI chat error', err);
       return {
@@ -65,7 +59,7 @@ export class AiService {
 Message: "${text.slice(0, 500)}"
 
 Score:`;
-      const result = await this.openai.complete(prompt, 10);
+      const result = await this.anthropic.complete(prompt, 10);
       const score = parseFloat(result.trim());
       return isNaN(score) ? 0.5 : Math.max(0, Math.min(1, score));
     } catch {
@@ -84,7 +78,7 @@ ${recentMessages.map((m, i) => `${i + 1}. ${m}`).join('\n')}
 Rate the burnout risk from 0.0 (no risk) to 1.0 (severe burnout/crisis). Return ONLY the decimal number.
 
 Score:`;
-      const result = await this.openai.complete(prompt, 10);
+      const result = await this.anthropic.complete(prompt, 10);
       const score = parseFloat(result.trim());
       const normalizedScore = isNaN(score) ? 0.1 : Math.max(0, Math.min(1, score));
       const risk = normalizedScore > 0.7 ? 'HIGH' : normalizedScore > 0.4 ? 'MEDIUM' : 'LOW';
@@ -101,7 +95,7 @@ Content:
 ${content.slice(0, 3000)}
 
 Summary:`;
-    return this.openai.complete(prompt, 400);
+    return this.anthropic.complete(prompt, 400);
   }
 
   async extractHighYieldFacts(content: string): Promise<Array<{ question: string; answer: string }>> {
@@ -115,7 +109,7 @@ Return ONLY a valid JSON array in this exact format:
 
 JSON:`;
     try {
-      const result = await this.openai.complete(prompt, 800);
+      const result = await this.anthropic.complete(prompt, 800);
       const jsonMatch = result.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];
       return JSON.parse(jsonMatch[0]);
