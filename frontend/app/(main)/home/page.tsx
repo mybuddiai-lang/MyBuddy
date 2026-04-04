@@ -6,7 +6,6 @@ import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock,
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useStats } from '@/lib/hooks/use-stats';
 import { useReminders } from '@/lib/hooks/use-reminders';
-import { useActivity } from '@/lib/hooks/use-activity';
 import { differenceInDays } from 'date-fns';
 
 // QUOTES kept as motivational content, not dummy data
@@ -24,7 +23,6 @@ export default function HomePage() {
   const { user } = useAuthStore();
   const { stats } = useStats();
   const { dueReminders } = useReminders();
-  const { activity } = useActivity();
 
   const quote = QUOTES[new Date().getDay() % QUOTES.length];
   const daysUntilExam = user?.examDate ? differenceInDays(new Date(user.examDate), new Date()) : null;
@@ -150,22 +148,6 @@ export default function HomePage() {
           ))}
         </div>
       </div>
-
-      {/* Recent activity */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">Recent Activity</p>
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-card divide-y divide-zinc-50 dark:divide-zinc-800">
-          {activity.map(({ id, icon, text, time }) => (
-            <div key={id} className="flex items-center gap-3 px-4 py-3">
-              <span className="text-lg shrink-0">{icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-zinc-700 dark:text-zinc-200 truncate">{text}</p>
-              </div>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0">{time}</p>
-            </div>
-          ))}
-        </div>
-      </motion.div>
 
       {/* Daily quote */}
       <motion.div

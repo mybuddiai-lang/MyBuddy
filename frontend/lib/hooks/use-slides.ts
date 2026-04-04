@@ -5,7 +5,7 @@ import { slidesApi, type Note } from '@/lib/api/slides';
 
 const DUMMY_NOTES: Note[] = [
   {
-    id: '1',
+    id: 'demo-1',
     title: 'Pharmacology — CNS Drugs',
     fileType: 'PDF',
     processingStatus: 'DONE',
@@ -14,21 +14,40 @@ const DUMMY_NOTES: Note[] = [
     summary: 'Covers dopamine pathways, antipsychotics, and mood stabilizers',
   },
   {
-    id: '2',
-    title: 'Anatomy Notes — Week 4',
+    id: 'demo-2',
+    title: 'Anatomy Notes — Upper Limb',
     fileType: 'IMAGE',
     processingStatus: 'DONE',
-    masteryLevel: 1,
+    masteryLevel: 2,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
-    summary: 'Upper limb musculature and brachial plexus',
+    summary: 'Upper limb musculature, brachial plexus and neurovascular supply',
   },
   {
-    id: '3',
+    id: 'demo-3',
+    title: 'Contract Law — Essentials',
+    fileType: 'PDF',
+    processingStatus: 'DONE',
+    masteryLevel: 4,
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+    summary: 'Offer, acceptance, consideration, privity and breach remedies',
+  },
+  {
+    id: 'demo-4',
+    title: 'Thermodynamics Lecture 3',
+    fileType: 'PDF',
+    processingStatus: 'DONE',
+    masteryLevel: 1,
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    summary: 'Laws of thermodynamics, entropy, Carnot cycle and efficiency',
+  },
+  {
+    id: 'demo-5',
     title: 'Voice note — Cardiology',
     fileType: 'VOICE',
-    processingStatus: 'PROCESSING',
-    masteryLevel: 0,
+    processingStatus: 'DONE',
+    masteryLevel: 2,
     createdAt: new Date(Date.now() - 3600000).toISOString(),
+    summary: 'Heart sounds, murmurs, cardiac output and Frank-Starling mechanism',
   },
 ];
 

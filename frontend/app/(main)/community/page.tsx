@@ -39,18 +39,19 @@ function getColor(pod: Pod): string {
   return SUBJECT_COLORS[key] || COLOR_LIST[Math.abs(pod.id.charCodeAt(0)) % COLOR_LIST.length];
 }
 
-const MOCK_PODS: Pod[] = [
-  { id: '1', name: 'MBBS Finals 2026', description: 'Study group for final year medical students', memberCount: 48, isPublic: true, field: 'Medicine', lastActivity: '2m ago', isMember: true, color: 'bg-red-100 text-red-600' },
-  { id: '2', name: 'Anatomy Nerds', description: 'Anatomy deep dives, diagrams, and mnemonics', memberCount: 23, isPublic: true, field: 'Anatomy', lastActivity: '1h ago', isMember: true, color: 'bg-blue-100 text-blue-600' },
-  { id: '3', name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates', memberCount: 67, isPublic: true, field: 'Law', lastActivity: '15m ago', isMember: false, color: 'bg-amber-100 text-amber-600' },
-  { id: '4', name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics', memberCount: 31, isPublic: true, field: 'Engineering', lastActivity: '3h ago', isMember: false, color: 'bg-green-100 text-green-600' },
-  { id: '5', name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', memberCount: 19, isPublic: true, field: 'Accounting', lastActivity: '5h ago', isMember: false, color: 'bg-purple-100 text-purple-600' },
-  { id: '6', name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', memberCount: 42, isPrivate: true, field: 'Pharmacy', lastActivity: '30m ago', isMember: false, color: 'bg-teal-100 text-teal-600' },
+// Static discover pods — always visible regardless of API state
+const DISCOVER_DUMMIES: Pod[] = [
+  { id: 'disc-1', name: 'MBBS Finals 2026', description: 'Study group for final year medical students preparing for finals', memberCount: 48, isPublic: true, field: 'Medicine', lastActivity: '2m ago', isMember: false, color: 'bg-red-100 text-red-600' },
+  { id: 'disc-2', name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates — case laws, essays, moots', memberCount: 67, isPublic: true, field: 'Law', lastActivity: '15m ago', isMember: false, color: 'bg-amber-100 text-amber-600' },
+  { id: 'disc-3', name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics and beyond', memberCount: 31, isPublic: true, field: 'Engineering', lastActivity: '3h ago', isMember: false, color: 'bg-green-100 text-green-600' },
+  { id: 'disc-4', name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', memberCount: 19, isPublic: true, field: 'Accounting', lastActivity: '5h ago', isMember: false, color: 'bg-purple-100 text-purple-600' },
+  { id: 'disc-5', name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', memberCount: 42, isPublic: true, field: 'Pharmacy', lastActivity: '30m ago', isMember: false, color: 'bg-teal-100 text-teal-600' },
 ];
 
 export default function CommunityPage() {
   const router = useRouter();
-  const [pods, setPods] = useState<Pod[]>(MOCK_PODS);
+  const [pods, setPods] = useState<Pod[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [showCreate, setShowCreate] = useState(false);
   const [newPodName, setNewPodName] = useState('');
@@ -59,23 +60,28 @@ export default function CommunityPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    // Try to load from API — keep mock data on failure
     Promise.all([
       communityApi.getAll().catch(() => null),
       communityApi.getMy().catch(() => null),
     ]).then(([allRaw, myRaw]) => {
-      if (!allRaw && !myRaw) return; // API unavailable — keep mock data
       const all: any[] = (allRaw as any)?.data?.data ?? (allRaw as any)?.data ?? [];
       const myList: any[] = (myRaw as any)?.data?.data ?? (myRaw as any)?.data ?? [];
       const myIds = new Set(Array.isArray(myList) ? myList.map((p: any) => p.id) : []);
-      if (Array.isArray(all) && all.length > 0) {
-        setPods(all.map((p: any) => ({
-          ...p,
-          field: p.field || p.subjectFilter || 'General',
-          isMember: myIds.has(p.id),
-          color: getColor({ ...p, field: p.field }),
-        })));
-      }
+
+      const apiPods: Pod[] = Array.isArray(all) && all.length > 0
+        ? all.map((p: any) => ({
+            ...p,
+            field: p.field || p.subjectFilter || 'General',
+            isMember: myIds.has(p.id),
+            color: getColor({ ...p, field: p.field }),
+          }))
+        : [];
+
+      // Merge API my-pods + static discover dummies (deduped by id)
+      const apiIds = new Set(apiPods.map(p => p.id));
+      const mergedDiscover = DISCOVER_DUMMIES.filter(d => !apiIds.has(d.id));
+      setPods([...apiPods, ...mergedDiscover]);
+      setLoading(false);
     });
   }, []);
 
@@ -181,7 +187,22 @@ export default function CommunityPage() {
 
       {/* Pod list */}
       <div className="space-y-3">
-        {displayList.map((pod, i) => {
+        {loading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-zinc-100 dark:bg-zinc-800 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 bg-zinc-100 dark:bg-zinc-800 rounded-full w-2/3" />
+                    <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full w-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && displayList.map((pod, i) => {
           const isPrivate = pod.isPrivate ?? !pod.isPublic;
           const podColor = pod.color || getColor(pod);
           return (
@@ -244,7 +265,7 @@ export default function CommunityPage() {
           );
         })}
 
-        {displayList.length === 0 && (
+        {!loading && displayList.length === 0 && (
           <div className="text-center py-12">
             <p className="text-4xl mb-3">👥</p>
             <p className="text-zinc-600 font-medium">{activeTab === 'my' ? 'No pods yet' : 'No matching pods'}</p>

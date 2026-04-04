@@ -6,6 +6,7 @@ interface ChatState {
   messages: Message[];
   isTyping: boolean;
   isLoadingHistory: boolean;
+  historyLoaded: boolean;
   sendMessage: (content: string) => Promise<void>;
   loadHistory: () => Promise<void>;
   clearMessages: () => void;
@@ -15,6 +16,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isTyping: false,
   isLoadingHistory: false,
+  historyLoaded: false,
 
   sendMessage: async (content: string) => {
     const userMsg: Message = {
@@ -54,23 +56,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadHistory: async () => {
+    // Skip refetch if already loaded this session (unless messages were cleared)
+    const { historyLoaded, messages } = get();
+    if (historyLoaded && messages.length > 0) return;
     set({ isLoadingHistory: true });
     try {
-      const { messages } = await chatApi.getHistory();
-      const parsed: Message[] = messages.map(m => ({
+      const { messages: fetched } = await chatApi.getHistory();
+      const parsed: Message[] = fetched.map(m => ({
         id: m.id,
         role: m.role,
         content: m.content,
         sentimentScore: m.sentimentScore,
         createdAt: new Date(m.createdAt),
       }));
-      set({ messages: parsed });
+      set({ messages: parsed, historyLoaded: true });
     } catch {
-      // silent fail
+      // silent fail — keep any existing messages
+      set({ historyLoaded: true });
     } finally {
       set({ isLoadingHistory: false });
     }
   },
 
-  clearMessages: () => set({ messages: [] }),
+  clearMessages: () => set({ messages: [], historyLoaded: false }),
 }));

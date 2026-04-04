@@ -41,7 +41,7 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function ChatPage() {
-  const { messages, isTyping, sendMessage, loadHistory } = useChatStore();
+  const { messages, isTyping, isLoadingHistory, sendMessage, loadHistory } = useChatStore();
   const { user } = useAuthStore();
   const { notes } = useSlides();
   const [input, setInput] = useState('');
@@ -98,7 +98,16 @@ export default function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-130px)]">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
-        {displayMessages.length === 0 ? (
+        {isLoadingHistory ? (
+          <div className="flex flex-col gap-4 pt-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className={`flex gap-2 ${i % 2 === 0 ? 'justify-end' : ''}`}>
+                {i % 2 !== 0 && <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/50 shrink-0 animate-pulse" />}
+                <div className={`h-12 rounded-2xl animate-pulse bg-zinc-100 dark:bg-zinc-800 ${i % 2 === 0 ? 'w-48' : 'w-56'}`} />
+              </div>
+            ))}
+          </div>
+        ) : displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center mb-4">
               <span className="text-3xl">🤝</span>

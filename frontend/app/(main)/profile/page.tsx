@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useRouter } from 'next/navigation';
-import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star, Pencil, X, Check, Trophy } from 'lucide-react';
+import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star, Pencil, X, Check, Trophy, LayoutDashboard } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { usersApi } from '@/lib/api/users';
 import toast from 'react-hot-toast';
@@ -71,7 +71,10 @@ export default function ProfilePage() {
     }
   };
 
+  const isAdmin = user?.email === 'admin@gmail.com' || user?.role === 'ADMIN';
+
   const SETTINGS = [
+    ...(isAdmin ? [{ icon: LayoutDashboard, label: 'Admin Dashboard', desc: 'Platform analytics and controls', href: '/admin' }] : []),
     { icon: Trophy, label: 'Leaderboard', desc: 'See how you rank', href: '/leaderboard' },
     { icon: Bell, label: 'Notifications', desc: 'Reminders and alerts', href: '/profile/notifications' },
     { icon: CreditCard, label: 'Subscription', desc: user?.subscriptionTier === 'FREE' ? 'Free tier — Upgrade' : 'Premium', href: '/profile/subscription' },
