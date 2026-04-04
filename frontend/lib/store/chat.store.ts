@@ -27,6 +27,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const response = await chatApi.sendMessage(content);
+      // Guard against unexpected null/undefined response
+      if (!response || !response.id) throw new Error('Invalid response from server');
       const assistantMsg: Message = {
         id: response.id,
         role: 'assistant',
@@ -38,12 +40,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...state.messages, assistantMsg],
         isTyping: false,
       }));
-    } catch (err) {
+    } catch {
       set((state) => ({
         messages: [...state.messages, {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: "I'm having trouble connecting right now. Please try again in a moment. 💙",
+          content: "I'm having trouble connecting right now. Please check your connection and try again.",
           createdAt: new Date(),
         }],
         isTyping: false,

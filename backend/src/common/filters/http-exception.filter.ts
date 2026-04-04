@@ -18,12 +18,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ? exception.getResponse()
       : 'Internal server error';
 
+    // Flatten validation arrays to a single readable string
+    const rawMessage = typeof message === 'object' ? (message as any).message : message;
+    const normalizedMessage = Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
+
     const errorResponse = {
       success: false,
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: typeof message === 'object' ? (message as any).message : message,
+      message: normalizedMessage || 'An unexpected error occurred',
     };
 
     if (status >= 500) {

@@ -35,9 +35,23 @@ export default function SignupPage() {
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
+  const extractErrorMessage = (err: any, fallback: string): string => {
+    const msg = err?.response?.data?.message;
+    if (Array.isArray(msg)) return msg[0] || fallback;
+    return (typeof msg === 'string' && msg) ? msg : fallback;
+  };
+
   const nextStep = () => {
-    if (step === 0 && (!form.name || !form.email || !form.password)) {
-      return toast.error('Please fill in all fields');
+    if (step === 0) {
+      if (!form.name.trim() || !form.email.trim() || !form.password) {
+        return toast.error('Please fill in all fields');
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return toast.error('Please enter a valid email address');
+      }
+      if (form.password.length < 8) {
+        return toast.error('Password must be at least 8 characters');
+      }
     }
     if (step < steps.length - 1) setStep((s) => s + 1);
   };
@@ -46,19 +60,19 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       const data = await authApi.register({
-        name: form.name,
-        email: form.email,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
         password: form.password,
-        school: form.school || undefined,
-        department: form.department || undefined,
-        specialization: form.specialization || undefined,
+        school: form.school.trim() || undefined,
+        department: form.department.trim() || undefined,
+        specialization: form.specialization.trim() || undefined,
         examDate: form.examDate || undefined,
       });
       login(data.user, data.accessToken, data.refreshToken);
-      toast.success('Welcome to Buddi! 🎉');
+      toast.success('Welcome to Buddi!');
       router.replace('/home');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Registration failed. Please try again.');
+      toast.error(extractErrorMessage(err, 'Registration failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }

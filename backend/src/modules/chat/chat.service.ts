@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -7,6 +7,8 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
@@ -31,45 +33,29 @@ export class ChatService {
       content: m.content,
     }));
 
-    // Save user message
+    // Save user message immediately (sentiment updated async in background)
     const userMessage = await this.prisma.chatMessage.create({
       data: { userId, role: 'USER', content: dto.content, tokenCount: 0 },
     });
 
-    // Analyze sentiment of user message
-    const sentimentScore = await this.aiService.analyzeSentiment(dto.content);
-    await this.prisma.chatMessage.update({
-      where: { id: userMessage.id },
-      data: { sentimentScore },
-    });
-
-    // Get AI response
+    // Get AI response — single blocking OpenAI call
     const aiResponse = await this.aiService.sendChatMessage(userId, dto.content, history, user);
 
-    // Save assistant message
+    // Save assistant message immediately — return this to the client fast
     const assistantMessage = await this.prisma.chatMessage.create({
       data: {
         userId,
         role: 'ASSISTANT',
         content: aiResponse.content,
         tokenCount: aiResponse.outputTokens,
-        sentimentScore: await this.aiService.analyzeSentiment(aiResponse.content),
+        sentimentScore: 0.5, // default; updated in background below
       },
     });
 
-    // Update user's sentiment baseline (exponential moving average — weight 20% new, 80% historical)
-    const currentUser = await this.prisma.user.findUnique({ where: { id: userId }, select: { sentimentBaseline: true } });
-    const prevBaseline = currentUser?.sentimentBaseline ?? 0.5;
-    const newBaseline = 0.8 * prevBaseline + 0.2 * sentimentScore;
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        sentimentBaseline: { set: Math.max(0, Math.min(1, newBaseline)) },
-        lastActiveAt: new Date(),
-      },
-    });
-
-    this.analyticsService.track(userId, 'message_sent', { sentimentScore, contentLength: dto.content.length }).catch(() => {});
+    // ── Background tasks (non-blocking — do not await) ────────────────────────
+    // Sentiment analysis + baseline update run after the HTTP response is sent
+    this.runBackgroundTasks(userId, userMessage.id, assistantMessage.id, dto.content, aiResponse.content);
+    this.analyticsService.track(userId, 'message_sent', { contentLength: dto.content.length }).catch(() => {});
 
     return {
       id: assistantMessage.id,
@@ -78,6 +64,39 @@ export class ChatService {
       sentimentScore: assistantMessage.sentimentScore,
       createdAt: assistantMessage.createdAt,
     };
+  }
+
+  // Runs after the HTTP response is already sent — failures are silent
+  private runBackgroundTasks(
+    userId: string,
+    userMessageId: string,
+    assistantMessageId: string,
+    userContent: string,
+    aiContent: string,
+  ) {
+    (async () => {
+      try {
+        const [userSentiment, aiSentiment] = await Promise.all([
+          this.aiService.analyzeSentiment(userContent),
+          this.aiService.analyzeSentiment(aiContent),
+        ]);
+
+        await Promise.all([
+          this.prisma.chatMessage.update({ where: { id: userMessageId }, data: { sentimentScore: userSentiment } }),
+          this.prisma.chatMessage.update({ where: { id: assistantMessageId }, data: { sentimentScore: aiSentiment } }),
+        ]);
+
+        const currentUser = await this.prisma.user.findUnique({ where: { id: userId }, select: { sentimentBaseline: true } });
+        const prevBaseline = currentUser?.sentimentBaseline ?? 0.5;
+        const newBaseline = Math.max(0, Math.min(1, 0.8 * prevBaseline + 0.2 * userSentiment));
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { sentimentBaseline: { set: newBaseline }, lastActiveAt: new Date() },
+        });
+      } catch (err) {
+        this.logger.warn('Background sentiment update failed (non-critical)', err);
+      }
+    })();
   }
 
   async getHistory(userId: string, pagination: PaginationDto) {

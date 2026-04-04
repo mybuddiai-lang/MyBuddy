@@ -21,16 +21,22 @@ export default function LoginPage() {
     if (isAuthenticated) router.replace('/home');
   }, [isAuthenticated, router]);
 
+  const extractErrorMessage = (err: any, fallback: string): string => {
+    const msg = err?.response?.data?.message;
+    if (Array.isArray(msg)) return msg[0] || fallback;
+    return (typeof msg === 'string' && msg) ? msg : fallback;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return toast.error('Please fill in all fields');
+    if (!email.trim() || !password) return toast.error('Please fill in all fields');
     setIsLoading(true);
     try {
-      const data = await authApi.login({ email, password });
+      const data = await authApi.login({ email: email.trim().toLowerCase(), password });
       login(data.user, data.accessToken, data.refreshToken);
       router.replace('/home');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Login failed. Check your credentials.');
+      toast.error(extractErrorMessage(err, 'Login failed. Check your credentials.'));
     } finally {
       setIsLoading(false);
     }
