@@ -27,6 +27,12 @@ export class LeaderboardController {
     return this.leaderboardService.getStreakLeaderboard(userId);
   }
 
+  @Get('recall')
+  @ApiOperation({ summary: 'Global recall accuracy leaderboard (last 30 days, min 5 cards)' })
+  getRecallLeaderboard(@CurrentUser('id') userId: string) {
+    return this.leaderboardService.getRecallLeaderboard(userId);
+  }
+
   @Get('community/:communityId')
   @ApiOperation({ summary: 'Community-specific resilience leaderboard' })
   getCommunityLeaderboard(

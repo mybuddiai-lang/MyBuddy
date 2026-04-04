@@ -105,13 +105,31 @@ export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('streak');
   const isPremium = user?.subscriptionTier !== 'FREE';
 
+  const ENDPOINT: Record<Tab, string> = {
+    streak: '/leaderboard/streaks',
+    resilience: '/leaderboard',
+    recall: '/leaderboard/recall',
+  };
+
   const { data: apiData } = useQuery({
     queryKey: ['leaderboard', activeTab],
     queryFn: async () => {
-      const res = await apiClient.get(`/users/leaderboard?sortBy=${activeTab}`);
-      // TransformInterceptor wraps response: { success, data, timestamp }
-      const payload = res.data?.data ?? res.data;
-      return (Array.isArray(payload) ? payload : []) as LeaderEntry[];
+      try {
+        const res = await apiClient.get(ENDPOINT[activeTab]);
+        const payload = res.data?.data ?? res.data;
+        const list = payload?.leaderboard ?? (Array.isArray(payload) ? payload : []);
+        // Normalise: backend uses userId or id
+        return list.map((e: any) => ({
+          ...e,
+          userId: e.userId ?? e.id,
+          school: e.school ?? '',
+          resilienceScore: e.resilienceScore ?? 50,
+          recallAccuracy: e.recallAccuracy ?? 0,
+          studyStreak: e.studyStreak ?? 0,
+        })) as LeaderEntry[];
+      } catch {
+        return null;
+      }
     },
     retry: 0,
     staleTime: 5 * 60 * 1000,

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { CreateReminderDto } from './dto/create-reminder.dto';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class RemindersService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
+    private analyticsService: AnalyticsService,
   ) {}
 
   async create(userId: string, dto: CreateReminderDto) {
@@ -58,10 +60,13 @@ export class RemindersService {
   async complete(id: string, userId: string) {
     const reminder = await this.prisma.reminder.findFirst({ where: { id, userId } });
     if (!reminder) throw new NotFoundException('Reminder not found');
-    return this.prisma.reminder.update({
+    const result = await this.prisma.reminder.update({
       where: { id },
       data: { status: 'COMPLETED', completedAt: new Date() },
     });
+    // Recalculate resilience score after completing a study activity
+    this.analyticsService.recalculateForUser(userId).catch(() => {});
+    return result;
   }
 
   async snooze(id: string, userId: string, hours: number) {

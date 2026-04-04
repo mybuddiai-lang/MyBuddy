@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Bell, Brain, MessageCircle, Calendar, Users, Smartphone, AlertCircle, CheckCircle } from 'lucide-react';
@@ -13,22 +13,41 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { state: pushState, subscribe, unsubscribe, error: pushError } = usePushNotifications();
 
-  const [settings, setSettings] = useState<NotifSetting[]>([
+  const DEFAULT_SETTINGS: NotifSetting[] = [
     { id: 'recall', label: 'Recall Reminders', desc: 'Get reminded when cards are due for review', icon: Brain, enabled: true },
     { id: 'study', label: 'Study Reminders', desc: 'Daily study goal reminders', icon: Calendar, enabled: true },
     { id: 'chat', label: 'Buddi Messages', desc: 'Check-ins from Buddi when inactive', icon: MessageCircle, enabled: false },
     { id: 'community', label: 'Community Updates', desc: 'New posts in your study pods', icon: Users, enabled: true },
     { id: 'exam', label: 'Exam Countdown', desc: 'Daily countdown to your exam date', icon: Bell, enabled: true },
-  ]);
+  ];
+
+  const [settings, setSettings] = useState<NotifSetting[]>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
+
+  // Restore saved preferences from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('buddi_notif_prefs');
+      if (saved) {
+        const prefs: Record<string, boolean> = JSON.parse(saved);
+        setSettings(prev => prev.map(s => ({ ...s, enabled: prefs[s.id] ?? s.enabled })));
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const toggle = (id: string) => setSettings(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
 
   const handleSave = async () => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600));
-    setSaving(false);
-    toast.success('Notification preferences saved');
+    try {
+      const prefs = Object.fromEntries(settings.map(s => [s.id, s.enabled]));
+      localStorage.setItem('buddi_notif_prefs', JSON.stringify(prefs));
+      toast.success('Notification preferences saved');
+    } catch {
+      toast.error('Could not save preferences');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePushToggle = async () => {

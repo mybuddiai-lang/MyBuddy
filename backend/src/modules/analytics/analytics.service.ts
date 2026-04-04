@@ -91,6 +91,64 @@ export class AnalyticsService {
     }
   }
 
+  /** Recalculate & persist resilience score for a single user — called after key events */
+  async recalculateForUser(userId: string): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { sentimentBaseline: true, studyStreak: true },
+      });
+      if (!user) return;
+
+      const sessions = await this.prisma.recallSession.findMany({
+        where: { userId, completedAt: { not: null } },
+        orderBy: { completedAt: 'desc' },
+        take: 10,
+        select: { cardsReviewed: true, correctAnswers: true },
+      });
+
+      const totalCards = sessions.reduce((a, s) => a + s.cardsReviewed, 0);
+      const totalCorrect = sessions.reduce((a, s) => a + s.correctAnswers, 0);
+      const recallAccuracy = totalCards > 0 ? totalCorrect / totalCards : 0.5;
+      const streakScore = Math.min((user.studyStreak ?? 0) / 30, 1);
+      const sentimentScore = user.sentimentBaseline ?? 0.5;
+
+      // 40% sentiment · 30% streak · 30% recall accuracy
+      const score = (sentimentScore * 0.4 + streakScore * 0.3 + recallAccuracy * 0.3) * 100;
+
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { resilienceScore: Math.round(score * 10) / 10 },
+      });
+    } catch {
+      // Non-critical
+    }
+  }
+
+  /** Run nightly at 00:05 — reset streaks for users who skipped recall yesterday */
+  @Cron('5 0 * * *')
+  async resetStaleStreaks() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+
+    // Users who completed at least one recall session yesterday
+    const activeYesterday = await this.prisma.recallSession.findMany({
+      where: { completedAt: { gte: yesterday, lt: today } },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const activeIds = activeYesterday.map(s => s.userId);
+
+    const where = activeIds.length > 0
+      ? { studyStreak: { gt: 0 }, id: { notIn: activeIds } }
+      : { studyStreak: { gt: 0 } };
+
+    const result = await this.prisma.user.updateMany({ where, data: { studyStreak: 0 } });
+    if (result.count > 0) {
+      this.logger.warn(`Streak reset: ${result.count} user(s) missed their daily recall`);
+    }
+  }
+
   /** Run nightly at 03:00 — recalculate resilience scores */
   @Cron('0 3 * * *')
   async updateResilienceScores() {

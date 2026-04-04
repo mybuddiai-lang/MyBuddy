@@ -177,6 +177,9 @@ export class RecallService {
       correctAnswers: session.correctAnswers,
     }).catch(() => {});
 
+    // Update resilience score immediately after session (non-blocking)
+    this.analyticsService.recalculateForUser(userId).catch(() => {});
+
     return { message: 'Session complete', cardsReviewed: session.cardsReviewed };
   }
 

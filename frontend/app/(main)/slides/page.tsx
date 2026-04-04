@@ -3,10 +3,11 @@
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, Image, Mic, Search, ChevronRight, Clock } from 'lucide-react';
+import { Upload, FileText, Image, Mic, Search, ChevronRight, Clock, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSlides } from '@/lib/hooks/use-slides';
+import toast from 'react-hot-toast';
 import type { Note } from '@/lib/api/slides';
 
 const fileTypeIcon: Record<string, React.ReactNode> = {
@@ -24,9 +25,16 @@ function noteStatus(n: Note) {
 }
 
 export default function SlidesPage() {
-  const { notes, upload, isUploading } = useSlides();
+  const { notes, upload, isUploading, remove } = useSlides();
   const [search, setSearch] = useState('');
   const router = useRouter();
+
+  const handleDelete = (e: React.MouseEvent, noteId: string) => {
+    e.stopPropagation();
+    if (!confirm('Delete this note? This cannot be undone.')) return;
+    remove(noteId);
+    toast.success('Note deleted');
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     for (const file of acceptedFiles) {
@@ -129,9 +137,15 @@ export default function SlidesPage() {
                     </span>
                   </div>
                 </div>
-                <button className="text-zinc-300 hover:text-zinc-500 shrink-0">
-                  <ChevronRight size={18} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={e => handleDelete(e, note.id)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-300 hover:text-red-500 hover:bg-red-50 transition"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <ChevronRight size={18} className="text-zinc-300" />
+                </div>
               </motion.div>
             );
           })}
