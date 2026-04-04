@@ -64,6 +64,27 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     return { event: 'pong', data: { timestamp: Date.now() } };
   }
 
+  // ─── Community rooms ────────────────────────────────────────────────────────
+
+  @SubscribeMessage('community:join')
+  handleJoinCommunity(@ConnectedSocket() client: Socket, @MessageBody() communityId: string) {
+    client.join(`community:${communityId}`);
+    return { joined: communityId };
+  }
+
+  @SubscribeMessage('community:leave')
+  handleLeaveCommunity(@ConnectedSocket() client: Socket, @MessageBody() communityId: string) {
+    client.leave(`community:${communityId}`);
+    return { left: communityId };
+  }
+
+  // Broadcast an event to all members of a community room
+  broadcastToCommunity(communityId: string, event: string, data: any) {
+    this.server.to(`community:${communityId}`).emit(event, data);
+  }
+
+  // ─── User-targeted helpers ──────────────────────────────────────────────────
+
   // Send real-time notification to specific user
   notifyUser(userId: string, event: string, data: any) {
     this.server.to(`user:${userId}`).emit(event, data);

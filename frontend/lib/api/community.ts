@@ -120,6 +120,8 @@ export const communityApi = {
   getPosts: (communityId: string) => apiClient.get(`/community/${communityId}/posts`),
   createPost: (communityId: string, data: CreatePostDto) =>
     apiClient.post(`/community/${communityId}/posts`, data),
+  deletePost: (communityId: string, postId: string) =>
+    apiClient.delete(`/community/${communityId}/posts/${postId}`),
   likePost: (communityId: string, postId: string) =>
     apiClient.post(`/community/${communityId}/posts/${postId}/like`),
   unlikePost: (communityId: string, postId: string) =>

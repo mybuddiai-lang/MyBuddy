@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CommunityService } from './community.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -113,6 +113,17 @@ export class CommunityController {
     @Body() body: { content: string; attachmentUrl?: string; attachmentType?: string },
   ) {
     return this.communityService.createPost(communityId, userId, body.content, body.attachmentUrl, body.attachmentType);
+  }
+
+  @Delete(':communityId/posts/:postId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delete a post (author, pod admin/mod, or platform admin)' })
+  deletePost(
+    @Param('communityId') communityId: string,
+    @Param('postId') postId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communityService.deletePost(communityId, postId, userId);
   }
 
   @Post(':communityId/posts/:postId/like')

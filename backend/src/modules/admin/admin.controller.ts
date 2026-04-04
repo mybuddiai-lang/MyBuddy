@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -71,5 +71,25 @@ export class AdminController {
   @Post('users/:id/suspend')
   suspendUser(@Param('id') id: string, @Body('suspend') suspend: boolean) {
     return this.adminService.suspendUser(id, suspend !== false);
+  }
+
+  @Patch('users/:id/role')
+  updateUserRole(@Param('id') id: string, @Body('role') role: 'USER' | 'ADMIN') {
+    return this.adminService.updateUserRole(id, role);
+  }
+
+  @Get('users/:id/messages')
+  getUserMessages(@Param('id') id: string) {
+    return this.adminService.getUserMessages(id);
+  }
+
+  @Get('communities')
+  getCommunities() {
+    return this.adminService.getCommunities();
+  }
+
+  @Delete('communities/:id')
+  deleteCommunity(@Param('id') id: string) {
+    return this.adminService.deleteCommunity(id);
   }
 }

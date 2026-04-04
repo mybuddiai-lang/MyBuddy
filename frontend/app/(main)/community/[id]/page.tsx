@@ -6,10 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Send, Heart, Users, Hash, Pin, MoreHorizontal, MessageSquare,
   Paperclip, Mic, Image as ImageIcon, FileText, BarChart2, X, Plus, ChevronDown,
-  Check, LogOut, UserCog, Clock,
+  Check, LogOut, UserCog, Clock, Trash2,
 } from 'lucide-react';
 import { communityApi, CommunityPost, CommunityPostReply, CommunityPoll, CommunityMember, JoinRequest } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { useCommunitySocket } from '@/lib/hooks/use-community-socket';
+import toast from 'react-hot-toast';
 
 interface PodMeta {
   name: string;
@@ -506,7 +508,45 @@ export default function PodDetailPage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = pod.myRole === 'ADMIN';
+  const isPlatformAdmin = user?.role === 'ADMIN';
+  const isAdmin = pod.myRole === 'ADMIN' || isPlatformAdmin;
+  const canDeleteAny = isPlatformAdmin || pod.myRole === 'ADMIN' || pod.myRole === 'MODERATOR';
+
+  // Real-time socket connection
+  useCommunitySocket(id, {
+    onNewPost: (post) => {
+      // Only add if it's not our own optimistic post (our own posts are added optimistically)
+      setPosts(prev => {
+        const isDuplicate = prev.some(p => p.id === post.id);
+        if (isDuplicate) return prev;
+        return [...prev, { ...post, liked: false }];
+      });
+    },
+    onDeletePost: ({ postId }) => {
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    },
+    onNewReply: ({ postId }) => {
+      // Increment reply count on the post so the UI reflects it
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, repliesCount: p.repliesCount + 1 } : p
+      ));
+    },
+    onDeleteReply: ({ postId }) => {
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, repliesCount: Math.max(0, p.repliesCount - 1) } : p
+      ));
+    },
+    onNewPoll: (poll) => {
+      setPolls(prev => {
+        const isDuplicate = prev.some(p => p.id === poll.id);
+        if (isDuplicate) return prev;
+        return [poll, ...prev];
+      });
+    },
+    onPollUpdate: (updatedPoll) => {
+      setPolls(prev => prev.map(p => p.id === updatedPoll.id ? updatedPoll : p));
+    },
+  });
 
   // Load data
   useEffect(() => {
@@ -653,6 +693,20 @@ export default function PodDetailPage() {
     } catch { /* silent */ }
   };
 
+  const handleDeletePost = async (postId: string) => {
+    setPosts(prev => prev.filter(p => p.id !== postId)); // optimistic
+    try {
+      await communityApi.deletePost(id, postId);
+    } catch {
+      toast.error('Could not delete post');
+      // Re-fetch to restore
+      communityApi.getPosts(id).then((res: any) => {
+        const apiPosts: CommunityPost[] = res?.data?.data ?? [];
+        setPosts(apiPosts.map(p => ({ ...p, liked: false })));
+      }).catch(() => {});
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-130px)]">
       {/* Header */}
@@ -782,6 +836,15 @@ export default function PodDetailPage() {
                             : <ChevronDown size={11} className="transition-transform" />
                           }
                         </button>
+                        {(canDeleteAny || post.authorId === user?.id) && (
+                          <button
+                            onClick={() => handleDeletePost(post.id)}
+                            className="ml-auto flex items-center gap-1 text-xs text-zinc-300 hover:text-red-400 transition"
+                            title="Delete post"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

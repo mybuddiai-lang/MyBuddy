@@ -121,7 +121,6 @@ export class AdminService {
   }
 
   async suspendUser(userId: string, suspend: boolean) {
-    // Store suspension as role downgrade; a proper suspension would use a dedicated field
     await this.prisma.adminAlert.create({
       data: {
         type: suspend ? 'USER_SUSPENDED' : 'USER_REINSTATED',
@@ -131,5 +130,37 @@ export class AdminService {
       },
     });
     return { userId, suspended: suspend };
+  }
+
+  async updateUserRole(userId: string, role: 'USER' | 'ADMIN') {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: role as any },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    return user;
+  }
+
+  async getUserMessages(userId: string) {
+    return this.prisma.chatMessage.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { id: true, role: true, content: true, sentimentScore: true, createdAt: true },
+    });
+  }
+
+  async getCommunities() {
+    return this.prisma.community.findMany({
+      orderBy: { memberCount: 'desc' },
+      include: {
+        _count: { select: { posts: true, members: true } },
+      },
+    });
+  }
+
+  async deleteCommunity(id: string) {
+    await this.prisma.community.delete({ where: { id } });
+    return { deleted: true };
   }
 }

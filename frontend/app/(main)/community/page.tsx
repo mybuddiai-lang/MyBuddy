@@ -77,9 +77,12 @@ export default function CommunityPage() {
           }))
         : [];
 
-      // Merge API my-pods + static discover dummies (deduped by id)
+      // Merge API my-pods + static discover dummies (deduped by id AND name)
       const apiIds = new Set(apiPods.map(p => p.id));
-      const mergedDiscover = DISCOVER_DUMMIES.filter(d => !apiIds.has(d.id));
+      const apiNames = new Set(apiPods.map(p => p.name.toLowerCase().trim()));
+      const mergedDiscover = DISCOVER_DUMMIES.filter(
+        d => !apiIds.has(d.id) && !apiNames.has(d.name.toLowerCase().trim()),
+      );
       setPods([...apiPods, ...mergedDiscover]);
       setLoading(false);
     });
@@ -98,6 +101,52 @@ export default function CommunityPage() {
   );
 
   const handleJoin = async (podId: string) => {
+    // Dummy discover pod — find or create the real community, then join it
+    const dummy = DISCOVER_DUMMIES.find(d => d.id === podId);
+    if (dummy) {
+      try {
+        // First check if a real community with this name already exists
+        const allRes = await communityApi.getAll();
+        const allPods: any[] = (allRes as any)?.data?.data ?? (allRes as any)?.data ?? [];
+        const existing = allPods.find(
+          (p: any) => p.name.toLowerCase().trim() === dummy.name.toLowerCase().trim(),
+        );
+
+        let realCommunity: any = existing;
+
+        if (!realCommunity) {
+          // No real community yet — create it
+          const createRes = await communityApi.create({
+            name: dummy.name,
+            description: dummy.description,
+            field: dummy.field || 'General',
+          });
+          realCommunity = (createRes as any)?.data?.data;
+        } else {
+          // Already exists — join it
+          const joinRes = await communityApi.join(realCommunity.id).catch(() => null);
+          const joinData = (joinRes as any)?.data?.data;
+          if (joinData?.pending) {
+            toast.success('Join request sent! Waiting for admin approval.');
+            return;
+          }
+        }
+
+        if (realCommunity?.id) {
+          setPods(prev => prev.map(p =>
+            p.id === podId
+              ? { ...dummy, ...realCommunity, isMember: true, color: dummy.color }
+              : p,
+          ));
+          toast.success('Joined the pod!');
+        }
+      } catch {
+        toast.error('Could not join — try again');
+      }
+      return;
+    }
+
+    // Normal join flow (real community ID)
     try {
       const res = await communityApi.join(podId);
       const data = (res as any)?.data?.data;
@@ -105,7 +154,7 @@ export default function CommunityPage() {
         toast.success('Join request sent! Waiting for admin approval.');
       } else {
         setPods(prev => prev.map(p => p.id === podId ? { ...p, isMember: true, memberCount: p.memberCount + 1 } : p));
-        toast.success('Joined the pod! 🎉');
+        toast.success('Joined the pod!');
       }
     } catch {
       toast.error('Could not join — try again');

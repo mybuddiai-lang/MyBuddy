@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class CommunityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private gateway?: NotificationsGateway,
+  ) {}
 
   private mapCommunity(c: any, myRole?: string | null) {
     return {
@@ -69,7 +73,6 @@ export class CommunityService {
       });
       if (existingRequest) {
         if (existingRequest.status === 'PENDING') throw new ConflictException('Join request already pending');
-        // Re-request if previously rejected
         await this.prisma.joinRequest.update({
           where: { communityId_userId: { communityId, userId } },
           data: { status: 'PENDING' },
@@ -193,10 +196,34 @@ export class CommunityService {
   }
 
   async createPost(communityId: string, userId: string, content: string, attachmentUrl?: string, attachmentType?: string) {
-    return this.prisma.communityPost.create({
+    const post = await this.prisma.communityPost.create({
       data: { communityId, authorId: userId, content, attachmentUrl, attachmentType: attachmentType as any },
       include: { author: { select: { id: true, name: true } } },
     });
+    this.gateway?.broadcastToCommunity(communityId, 'community:new_post', post);
+    return post;
+  }
+
+  async deletePost(communityId: string, postId: string, userId: string) {
+    const [post, membership, user] = await Promise.all([
+      this.prisma.communityPost.findFirst({ where: { id: postId, communityId } }),
+      this.prisma.communityMember.findFirst({ where: { communityId, userId } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+    ]);
+
+    if (!post) throw new NotFoundException('Post not found');
+
+    const canDelete =
+      post.authorId === userId ||
+      user?.role === 'ADMIN' ||
+      membership?.role === 'ADMIN' ||
+      membership?.role === 'MODERATOR';
+
+    if (!canDelete) throw new ForbiddenException('Not authorized to delete this post');
+
+    await this.prisma.communityPost.delete({ where: { id: postId } });
+    this.gateway?.broadcastToCommunity(communityId, 'community:delete_post', { postId });
+    return { deleted: true };
   }
 
   async likePost(postId: string, userId: string) {
@@ -243,21 +270,52 @@ export class CommunityService {
       }),
       this.prisma.communityPost.update({ where: { id: postId }, data: { repliesCount: { increment: 1 } } }),
     ]);
+
+    // Get communityId to broadcast
+    const post = await this.prisma.communityPost.findUnique({ where: { id: postId }, select: { communityId: true } });
+    if (post) this.gateway?.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
+
     return reply;
   }
 
-  async deleteReply(replyId: string, authorId: string) {
-    const reply = await this.prisma.communityPostReply.findFirst({ where: { id: replyId, authorId } });
+  async deleteReply(replyId: string, userId: string) {
+    const reply = await this.prisma.communityPostReply.findUnique({
+      where: { id: replyId },
+      include: {
+        post: {
+          include: {
+            community: { include: { members: { where: { userId }, select: { role: true } } } },
+          },
+        },
+      },
+    });
     if (!reply) throw new NotFoundException('Reply not found');
+
+    const membership = reply.post.community.members[0];
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+
+    const canDelete =
+      reply.authorId === userId ||
+      user?.role === 'ADMIN' ||
+      membership?.role === 'ADMIN' ||
+      membership?.role === 'MODERATOR';
+
+    if (!canDelete) throw new ForbiddenException('Not authorized to delete this reply');
 
     await this.prisma.$transaction([
       this.prisma.communityPostReply.delete({ where: { id: replyId } }),
       this.prisma.communityPost.update({ where: { id: reply.postId }, data: { repliesCount: { decrement: 1 } } }),
     ]);
+
+    this.gateway?.broadcastToCommunity(
+      reply.post.communityId,
+      'community:delete_reply',
+      { postId: reply.postId, replyId },
+    );
     return { deleted: true };
   }
 
-  // ─── Comments (existing) ──────────────────────────────────────────────────
+  // ─── Comments ──────────────────────────────────────────────────────────────
 
   async getComments(postId: string) {
     return this.prisma.communityPostComment.findMany({
@@ -280,11 +338,29 @@ export class CommunityService {
     return comment;
   }
 
-  async deleteComment(commentId: string, authorId: string) {
-    const comment = await this.prisma.communityPostComment.findFirst({
-      where: { id: commentId, authorId },
+  async deleteComment(commentId: string, userId: string) {
+    const comment = await this.prisma.communityPostComment.findUnique({
+      where: { id: commentId },
+      include: {
+        post: {
+          include: {
+            community: { include: { members: { where: { userId }, select: { role: true } } } },
+          },
+        },
+      },
     });
     if (!comment) throw new NotFoundException('Comment not found');
+
+    const membership = comment.post.community.members[0];
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+
+    const canDelete =
+      comment.authorId === userId ||
+      user?.role === 'ADMIN' ||
+      membership?.role === 'ADMIN' ||
+      membership?.role === 'MODERATOR';
+
+    if (!canDelete) throw new ForbiddenException('Not authorized to delete this comment');
 
     await this.prisma.$transaction([
       this.prisma.communityPostComment.delete({ where: { id: commentId } }),
@@ -320,7 +396,7 @@ export class CommunityService {
   }
 
   async createPoll(communityId: string, authorId: string, question: string, options: string[], endsAt?: Date) {
-    return this.prisma.communityPoll.create({
+    const poll = await this.prisma.communityPoll.create({
       data: {
         communityId,
         authorId,
@@ -333,10 +409,11 @@ export class CommunityService {
         options: true,
       },
     });
+    this.gateway?.broadcastToCommunity(communityId, 'community:new_poll', poll);
+    return poll;
   }
 
   async votePoll(pollId: string, optionId: string, userId: string) {
-    // Check user hasn't already voted in this poll
     const poll = await this.prisma.communityPoll.findUnique({
       where: { id: pollId },
       include: { options: { include: { votes: { where: { userId } } } } },
@@ -353,6 +430,11 @@ export class CommunityService {
       this.prisma.communityPollVote.create({ data: { optionId, userId } }),
       this.prisma.communityPollOption.update({ where: { id: optionId }, data: { votesCount: { increment: 1 } } }),
     ]);
+
+    // Broadcast updated poll to community room
+    const updatedPoll = await this.getPolls(poll.communityId, userId).then(polls => polls.find(p => p.id === pollId));
+    if (updatedPoll) this.gateway?.broadcastToCommunity(poll.communityId, 'community:poll_update', updatedPoll);
+
     return { voted: true, optionId };
   }
 }
