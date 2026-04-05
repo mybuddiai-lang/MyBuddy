@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth.store';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
 
@@ -15,13 +15,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated && !isAuthenticated) {
+    if (!hydrated) return;
+    if (!isAuthenticated) {
       router.replace('/login');
+      return;
     }
-  }, [hydrated, isAuthenticated, router]);
+    // Google sign-in users who haven't completed their profile yet
+    if (!user?.school) {
+      router.replace('/onboarding');
+    }
+  }, [hydrated, isAuthenticated, user, router]);
 
   // Show spinner while hydrating or while redirect is in progress
-  if (!hydrated || !isAuthenticated) {
+  if (!hydrated || !isAuthenticated || !user?.school) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-3">

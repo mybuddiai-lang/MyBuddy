@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { User } from './auth';
 
 export interface UserStats {
   noteCount: number;
@@ -18,8 +19,9 @@ export interface UpdateProfileDto {
 }
 
 export const usersApi = {
-  async updateProfile(dto: UpdateProfileDto): Promise<void> {
-    await apiClient.put('/users/profile', dto);
+  async updateProfile(dto: UpdateProfileDto): Promise<User> {
+    const { data } = await apiClient.put('/users/profile', dto);
+    return data.data;
   },
 
   async getStats(): Promise<UserStats> {

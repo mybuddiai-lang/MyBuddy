@@ -24,8 +24,13 @@ function GoogleCallbackInner() {
     try {
       const user = JSON.parse(decodeURIComponent(userParam));
       login(user, accessToken, refreshToken ?? undefined);
-      toast.success(`Welcome, ${user.name?.split(' ')[0] || 'there'}! 🎉`);
-      router.replace('/home');
+      // If Google user hasn't filled in school/department yet, send to onboarding
+      if (!user.school) {
+        router.replace('/onboarding');
+      } else {
+        toast.success(`Welcome back, ${user.name?.split(' ')[0] || 'there'}! 🎉`);
+        router.replace('/home');
+      }
     } catch {
       toast.error('Something went wrong. Please try again.');
       router.replace('/login');
