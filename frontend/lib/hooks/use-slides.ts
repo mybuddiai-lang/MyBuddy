@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { slidesApi, type Note } from '@/lib/api/slides';
+import toast from 'react-hot-toast';
 
 const DUMMY_NOTES: Note[] = [
   {
@@ -84,9 +85,13 @@ export function useSlides() {
         queryClient.setQueryData(['slides'], (old: Note[] = []) =>
           old.map(n => n.id === optimistic.id ? uploaded : n),
         );
+        toast.success('Note uploaded — Buddi is processing it');
         return uploaded;
       } catch {
-        // keep optimistic entry as processing
+        queryClient.setQueryData(['slides'], (old: Note[] = []) =>
+          old.filter(n => n.id !== optimistic.id),
+        );
+        toast.error('Upload failed. Check your connection and try again.');
         return optimistic;
       }
     },

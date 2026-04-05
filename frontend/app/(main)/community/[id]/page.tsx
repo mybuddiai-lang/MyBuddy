@@ -60,6 +60,7 @@ function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE'
 function ReplyThread({ communityId, postId, userId }: { communityId: string; postId: string; userId: string }) {
   const [replies, setReplies] = useState<CommunityPostReply[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachType, setAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
@@ -67,9 +68,10 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setLoadError(false);
     communityApi.getReplies(communityId, postId)
       .then((res: any) => setReplies(res?.data?.data ?? []))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [communityId, postId]);
 
@@ -118,7 +120,8 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         setReplies(prev => prev.map(r => r.id === optimistic.id ? created : r));
       }
     } catch {
-      // silent — optimistic stays
+      toast.error('Failed to send reply. Please try again.');
+      setReplies(prev => prev.filter(r => r.id !== optimistic.id));
     }
     setSending(false);
   };
@@ -126,6 +129,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   return (
     <div className="mt-3 ml-12 space-y-2">
       {loading && <p className="text-xs text-zinc-400">Loading replies…</p>}
+      {loadError && <p className="text-xs text-red-400">Could not load replies. Please try again.</p>}
       {replies.map(reply => (
         <div key={reply.id} className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-500 shrink-0">
@@ -286,7 +290,7 @@ function PollCreator({ communityId, onCreated, onClose }: { communityId: string;
       if (created) onCreated({ ...created, myVotedOptionId: null, options: (created.options ?? []).map((o: any) => ({ ...o, votedByMe: false })) });
       onClose();
     } catch {
-      // silent
+      toast.error('Failed to create poll. Please try again.');
     }
     setSubmitting(false);
   };
@@ -502,11 +506,15 @@ export default function PodDetailPage() {
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [newPost, setNewPost] = useState('');
+  const [postAttachFile, setPostAttachFile] = useState<File | null>(null);
+  const [postAttachType, setPostAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
   const [sending, setSending] = useState(false);
+  const [pollLoadError, setPollLoadError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showMemberSheet, setShowMemberSheet] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const postFileRef = useRef<HTMLInputElement>(null);
 
   const isPlatformAdmin = user?.role === 'ADMIN';
   const isAdmin = pod.myRole === 'ADMIN' || isPlatformAdmin;
@@ -577,9 +585,10 @@ export default function PodDetailPage() {
       .catch(() => {});
 
     // Polls
+    setPollLoadError(false);
     communityApi.getPolls(id)
       .then((res: any) => setPolls(res?.data?.data ?? []))
-      .catch(() => {});
+      .catch(() => setPollLoadError(true));
   }, [id]);
 
   // Load members & join requests for admin
@@ -610,14 +619,18 @@ export default function PodDetailPage() {
   };
 
   const handlePost = async () => {
-    if (!newPost.trim()) return;
+    if (!newPost.trim() && !postAttachFile) return;
     setSending(true);
     const content = newPost.trim();
+    const file = postAttachFile;
+    const attachType = postAttachType;
     const optimistic: any = {
       id: `local-${Date.now()}`,
       authorId: user?.id || '',
       author: { id: user?.id || '', name: user?.name || 'You' },
       content,
+      attachmentUrl: file ? URL.createObjectURL(file) : undefined,
+      attachmentType: attachType ?? undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
@@ -626,16 +639,32 @@ export default function PodDetailPage() {
     };
     setPosts(prev => [...prev, optimistic]);
     setNewPost('');
+    setPostAttachFile(null);
+    setPostAttachType(null);
     setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
 
     try {
-      const res = await communityApi.createPost(id, { content });
+      const res = await communityApi.createPost(id, {
+        content,
+        attachmentType: attachType ?? undefined,
+      });
       const created = (res as any)?.data?.data;
       if (created?.id) {
         setPosts(prev => prev.map(p => p.id === optimistic.id ? { ...created, liked: false } : p));
       }
-    } catch { /* silent */ }
+    } catch {
+      toast.error('Failed to post. Please try again.');
+      setPosts(prev => prev.filter(p => p.id !== optimistic.id));
+    }
     setSending(false);
+  };
+
+  const handlePostAttach = (type: 'FILE' | 'IMAGE' | 'VOICE') => {
+    setPostAttachType(type);
+    if (postFileRef.current) {
+      postFileRef.current.accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
+      postFileRef.current.click();
+    }
   };
 
   const handleVote = async (pollId: string, optionId: string) => {
@@ -653,7 +682,9 @@ export default function PodDetailPage() {
           })),
         };
       }));
-    } catch { /* silent */ }
+    } catch {
+      toast.error('Failed to submit vote. Please try again.');
+    }
   };
 
   const handleRoleChange = async (userId: string, role: 'MEMBER' | 'ADMIN') => {
@@ -887,7 +918,24 @@ export default function PodDetailPage() {
               />
             )}
 
-            {polls.length === 0 && !showPollCreator && (
+            {pollLoadError && (
+              <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
+                <p className="text-sm text-red-400 font-medium">Couldn't load polls</p>
+                <button
+                  onClick={() => {
+                    setPollLoadError(false);
+                    communityApi.getPolls(id)
+                      .then((res: any) => setPolls(res?.data?.data ?? []))
+                      .catch(() => setPollLoadError(true));
+                  }}
+                  className="mt-2 text-xs text-brand-500 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!pollLoadError && polls.length === 0 && !showPollCreator && (
               <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
                 <BarChart2 size={32} className="mb-3 opacity-40" />
                 <p className="text-sm font-medium">No polls yet</p>
@@ -904,7 +952,17 @@ export default function PodDetailPage() {
 
       {/* Compose bar (posts only) */}
       {activeTab === 'posts' && (
-        <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0">
+        <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-1.5">
+          {/* Selected file indicator */}
+          {postAttachFile && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500 ml-1">
+              <Paperclip size={11} />
+              <span className="truncate max-w-[200px]">{postAttachFile.name}</span>
+              <button onClick={() => { setPostAttachFile(null); setPostAttachType(null); }} className="text-zinc-400 hover:text-red-400">
+                <X size={11} />
+              </button>
+            </div>
+          )}
           <div className="flex items-end gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
             <textarea
               value={newPost}
@@ -920,17 +978,38 @@ export default function PodDetailPage() {
               className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed py-1"
               style={{ maxHeight: '100px' }}
             />
-            <button
-              onClick={handlePost}
-              disabled={!newPost.trim() || sending}
-              className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center shrink-0 mb-0.5 transition"
-            >
-              {sending
-                ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                : <Send size={13} className={newPost.trim() ? 'text-white' : 'text-zinc-400'} />
-              }
-            </button>
+            <div className="flex items-center gap-1 shrink-0 mb-0.5">
+              <button onClick={() => handlePostAttach('IMAGE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach image">
+                <ImageIcon size={15} />
+              </button>
+              <button onClick={() => handlePostAttach('VOICE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach voice">
+                <Mic size={15} />
+              </button>
+              <button onClick={() => handlePostAttach('FILE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach file">
+                <Paperclip size={15} />
+              </button>
+              <button
+                onClick={handlePost}
+                disabled={(!newPost.trim() && !postAttachFile) || sending}
+                className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center transition"
+              >
+                {sending
+                  ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  : <Send size={13} className={(newPost.trim() || postAttachFile) ? 'text-white' : 'text-zinc-400'} />
+                }
+              </button>
+            </div>
           </div>
+          <input
+            ref={postFileRef}
+            type="file"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) setPostAttachFile(file);
+              e.target.value = '';
+            }}
+          />
         </div>
       )}
 

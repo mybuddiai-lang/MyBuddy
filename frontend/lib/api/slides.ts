@@ -16,9 +16,8 @@ export const slidesApi = {
     const form = new FormData();
     form.append('file', file);
     form.append('title', file.name.replace(/\.[^/.]+$/, ''));
-    const { data } = await apiClient.post('/files/upload', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Do NOT set Content-Type manually — Axios/browser must auto-set it with the multipart boundary
+    const { data } = await apiClient.post('/files/upload', form);
     return data.data;
   },
   async getAll(): Promise<Note[]> {
