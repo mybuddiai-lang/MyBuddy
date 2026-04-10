@@ -1,8 +1,9 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap } from 'lucide-react';
+import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useStats } from '@/lib/hooks/use-stats';
 import { useReminders } from '@/lib/hooks/use-reminders';
@@ -33,6 +34,28 @@ export default function HomePage() {
   const resilienceScore = stats.resilienceScore ?? user?.resilienceScore ?? 50;
   const studyStreak = stats.studyStreak ?? user?.studyStreak ?? 0;
 
+  const [examBannerHidden, setExamBannerHidden] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('buddi_notif_prefs');
+      if (saved) {
+        const prefs = JSON.parse(saved);
+        if (prefs.exam === false) setExamBannerHidden(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const dismissExamBanner = () => {
+    setExamBannerHidden(true);
+    try {
+      const saved = localStorage.getItem('buddi_notif_prefs');
+      const prefs = saved ? JSON.parse(saved) : {};
+      prefs.exam = false;
+      localStorage.setItem('buddi_notif_prefs', JSON.stringify(prefs));
+    } catch { /* ignore */ }
+  };
+
   return (
     <div className="px-4 py-4 space-y-5 pb-6">
       {/* Greeting */}
@@ -42,20 +65,29 @@ export default function HomePage() {
       </motion.div>
 
       {/* Exam countdown */}
-      {daysUntilExam !== null && daysUntilExam > 0 && (
+      {daysUntilExam !== null && daysUntilExam > 0 && !examBannerHidden && (
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
           className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-2xl p-4 text-white"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
               <p className="text-brand-100 text-xs font-medium">Next exam in</p>
               <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
               <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
             </div>
-            <Target size={40} className="text-brand-200 opacity-50" />
+            <div className="flex flex-col items-end gap-2">
+              <button
+                onClick={dismissExamBanner}
+                className="text-brand-200 hover:text-white transition p-0.5 rounded"
+                title="Hide exam countdown"
+              >
+                <X size={14} />
+              </button>
+              <Target size={36} className="text-brand-200 opacity-50" />
+            </div>
           </div>
         </motion.div>
       )}

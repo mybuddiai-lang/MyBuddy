@@ -299,18 +299,22 @@ function PollCreator({ communityId, onCreated, onClose }: { communityId: string;
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white border border-brand-200 rounded-2xl p-4 shadow-card"
+      className="bg-white dark:bg-zinc-800 border border-brand-200 dark:border-zinc-700 rounded-2xl p-4 shadow-card"
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-bold text-zinc-800 flex items-center gap-2"><BarChart2 size={15} className="text-brand-500" /> Create Poll</span>
-        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
+        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+          <BarChart2 size={15} className="text-brand-500" /> Create Poll
+        </span>
+        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300">
+          <X size={16} />
+        </button>
       </div>
 
       <input
         value={question}
         onChange={e => setQuestion(e.target.value)}
         placeholder="Ask a question…"
-        className="w-full text-sm text-zinc-800 placeholder:text-zinc-400 border border-zinc-200 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-400 mb-3"
+        className="w-full text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border border-zinc-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand-400 dark:focus:border-brand-500 mb-3"
       />
 
       <div className="space-y-2 mb-3">
@@ -320,25 +324,27 @@ function PollCreator({ communityId, onCreated, onClose }: { communityId: string;
               value={opt}
               onChange={e => updateOption(i, e.target.value)}
               placeholder={`Option ${i + 1}`}
-              className="flex-1 text-sm text-zinc-800 placeholder:text-zinc-400 border border-zinc-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-brand-400"
+              className="flex-1 text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border border-zinc-200 dark:border-zinc-600 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-400 dark:focus:border-brand-500"
             />
             {options.length > 2 && (
-              <button onClick={() => removeOption(i)} className="text-zinc-400 hover:text-red-400"><X size={13} /></button>
+              <button onClick={() => removeOption(i)} className="text-zinc-400 hover:text-red-400 shrink-0">
+                <X size={13} />
+              </button>
             )}
           </div>
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pt-1">
         {options.length < 6 && (
-          <button onClick={addOption} className="text-xs text-brand-500 hover:text-brand-700 flex items-center gap-1 font-medium">
+          <button onClick={addOption} className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 flex items-center gap-1 font-medium">
             <Plus size={12} /> Add option
           </button>
         )}
         <button
           onClick={handleSubmit}
           disabled={!question.trim() || options.filter(o => o.trim()).length < 2 || submitting}
-          className="ml-auto text-xs font-semibold bg-brand-500 text-white px-4 py-1.5 rounded-full disabled:opacity-40 transition"
+          className="ml-auto text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white px-5 py-2 rounded-xl disabled:opacity-40 transition"
         >
           {submitting ? 'Creating…' : 'Create Poll'}
         </button>
@@ -904,9 +910,9 @@ export default function PodDetailPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => setShowPollCreator(v => !v)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-full hover:bg-brand-100 transition"
+                className="flex items-center gap-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 px-4 py-2 rounded-xl transition shadow-sm"
               >
-                <Plus size={13} /> Create Poll
+                <Plus size={15} /> {showPollCreator ? 'Cancel' : 'Create Poll'}
               </button>
             </div>
 

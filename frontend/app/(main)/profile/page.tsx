@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useRouter } from 'next/navigation';
@@ -33,6 +33,28 @@ export default function ProfilePage() {
   const daysUntilExam = user?.examDate
     ? differenceInDays(new Date(user.examDate), new Date())
     : null;
+
+  const [examBannerHidden, setExamBannerHidden] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('buddi_notif_prefs');
+      if (saved) {
+        const prefs = JSON.parse(saved);
+        if (prefs.exam === false) setExamBannerHidden(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const dismissExamBanner = () => {
+    setExamBannerHidden(true);
+    try {
+      const saved = localStorage.getItem('buddi_notif_prefs');
+      const prefs = saved ? JSON.parse(saved) : {};
+      prefs.exam = false;
+      localStorage.setItem('buddi_notif_prefs', JSON.stringify(prefs));
+    } catch { /* ignore */ }
+  };
 
   const handleLogout = () => {
     logout();
@@ -113,13 +135,20 @@ export default function ProfilePage() {
         </div>
 
         {/* Exam countdown */}
-        {daysUntilExam !== null && daysUntilExam > 0 && (
+        {daysUntilExam !== null && daysUntilExam > 0 && !examBannerHidden && (
           <div className="mt-4 bg-brand-50 dark:bg-brand-900/30 rounded-xl p-3 flex items-center gap-3">
             <Target size={18} className="text-brand-500 shrink-0" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">{daysUntilExam} days until exam</p>
               <p className="text-xs text-brand-500 dark:text-brand-400">Keep going — you've got this!</p>
             </div>
+            <button
+              onClick={dismissExamBanner}
+              className="text-brand-300 hover:text-brand-500 dark:text-brand-600 dark:hover:text-brand-400 transition shrink-0"
+              title="Hide exam countdown"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
       </motion.div>

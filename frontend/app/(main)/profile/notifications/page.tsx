@@ -18,7 +18,7 @@ export default function NotificationsPage() {
     { id: 'study', label: 'Study Reminders', desc: 'Daily study goal reminders', icon: Calendar, enabled: true },
     { id: 'chat', label: 'Buddi Messages', desc: 'Check-ins from Buddi when inactive', icon: MessageCircle, enabled: false },
     { id: 'community', label: 'Community Updates', desc: 'New posts in your study pods', icon: Users, enabled: true },
-    { id: 'exam', label: 'Exam Countdown', desc: 'Daily countdown to your exam date', icon: Bell, enabled: true },
+    { id: 'exam', label: 'Exam Countdown', desc: 'Show countdown banner on your home screen', icon: Bell, enabled: true },
   ];
 
   const [settings, setSettings] = useState<NotifSetting[]>(DEFAULT_SETTINGS);
@@ -49,6 +49,7 @@ export default function NotificationsPage() {
       setSaving(false);
     }
   };
+
 
   const handlePushToggle = async () => {
     if (pushState === 'subscribed') {

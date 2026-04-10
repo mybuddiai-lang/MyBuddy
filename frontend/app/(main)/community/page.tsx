@@ -115,17 +115,17 @@ export default function CommunityPage() {
         let realCommunity: any = existing;
 
         if (!realCommunity) {
-          // No real community yet — create it
+          // No real community yet — create it (creator is added as ADMIN member automatically)
           const createRes = await communityApi.create({
             name: dummy.name,
             description: dummy.description,
             field: dummy.field || 'General',
           });
-          realCommunity = (createRes as any)?.data?.data;
+          realCommunity = (createRes as any)?.data?.data ?? (createRes as any)?.data;
         } else {
           // Already exists — join it
           const joinRes = await communityApi.join(realCommunity.id).catch(() => null);
-          const joinData = (joinRes as any)?.data?.data;
+          const joinData = (joinRes as any)?.data?.data ?? (joinRes as any)?.data;
           if (joinData?.pending) {
             toast.success('Join request sent! Waiting for admin approval.');
             return;
@@ -149,7 +149,7 @@ export default function CommunityPage() {
     // Normal join flow (real community ID)
     try {
       const res = await communityApi.join(podId);
-      const data = (res as any)?.data?.data;
+      const data = (res as any)?.data?.data ?? (res as any)?.data;
       if (data?.pending) {
         toast.success('Join request sent! Waiting for admin approval.');
       } else {
