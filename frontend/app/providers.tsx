@@ -29,23 +29,50 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    // ── Service Worker: register + poll for updates every 5 min ──────────────
+    if ('serviceWorker' in navigator) {
+      let refreshing = false;
 
-    navigator.serviceWorker
-      .register('/sw.js', { updateViaCache: 'none' })
-      .then(registration => {
-        // Force check for a new SW on every page load
-        registration.update().catch(() => {});
-      })
-      .catch(() => {});
+      navigator.serviceWorker
+        .register('/sw.js', { updateViaCache: 'none' })
+        .then(reg => {
+          reg.update().catch(() => {});
+          // Keep checking for a newer SW while the app is open
+          const swPoller = setInterval(() => reg.update().catch(() => {}), 5 * 60 * 1000);
+          return () => clearInterval(swPoller);
+        })
+        .catch(() => {});
 
-    // When a new SW takes control, reload once to get fresh JS bundles
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
+      // New SW took over → reload once to get fresh JS bundles
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    }
+
+    // ── Version polling: silently reload when a new build is deployed ─────────
+    let currentBuildId: string | null = null;
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`/version.json?_=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const { buildId } = await res.json();
+        if (buildId === 'dev') return; // skip in local development
+        if (currentBuildId !== null && currentBuildId !== buildId) {
+          // New build detected — reload silently
+          window.location.reload();
+          return;
+        }
+        currentBuildId = buildId;
+      } catch { /* network offline — ignore */ }
+    };
+
+    checkVersion(); // Check immediately on load
+    const versionPoller = setInterval(checkVersion, 5 * 60 * 1000);
+
+    return () => clearInterval(versionPoller);
   }, []);
 
   return (
