@@ -1,4 +1,4 @@
-const CACHE_NAME = 'buddi-v6';
+const CACHE_NAME = 'buddi-v7';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline',

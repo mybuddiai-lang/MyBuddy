@@ -24,14 +24,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [persister] = useState(() =>
     createSyncStoragePersister({
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      key: 'buddi-rq-cache',
+      key: 'buddi-rq-cache-v2',
     })
   );
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then(registration => {
+        // Force check for a new SW on every page load
+        registration.update().catch(() => {});
+      })
+      .catch(() => {});
+
+    // When a new SW takes control, reload once to get fresh JS bundles
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
   }, []);
 
   return (
