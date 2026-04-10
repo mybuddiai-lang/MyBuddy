@@ -46,11 +46,13 @@ export function TopHeader() {
               <ArrowLeft size={16} className="text-zinc-600 dark:text-zinc-400" />
             </button>
           ) : isHome ? (
-            <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">B</span>
-            </div>
+            <img src="/icons/icon.svg" alt="Buddi" className="w-8 h-8 rounded-xl" />
           ) : null}
-          <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50">{title}</span>
+          {isHome ? (
+            <img src="/icons/logo.svg" alt="buddi" className="h-6" />
+          ) : (
+            <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50">{title}</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

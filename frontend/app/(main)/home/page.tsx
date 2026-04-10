@@ -54,31 +54,49 @@ export default function HomePage() {
       </motion.div>
 
       {/* Exam countdown */}
-      {daysUntilExam !== null && daysUntilExam > 0 && !examBannerHidden && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-2xl p-4 text-white"
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-brand-100 text-xs font-medium">Next exam in</p>
-              <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
-              <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
+      {daysUntilExam !== null && daysUntilExam > 0 && (
+        examBannerHidden ? (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => {
+              setExamBannerHidden(false);
+              localStorage.setItem('buddi_exam_hidden', 'false');
+            }}
+            className="w-full flex items-center justify-between bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800 rounded-xl px-4 py-2.5 text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <Target size={15} className="text-brand-500 shrink-0" />
+              <span className="text-sm text-brand-600 dark:text-brand-400 font-medium">Show exam countdown</span>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <button
-                onClick={dismissExamBanner}
-                className="text-brand-200 hover:text-white transition p-0.5 rounded"
-                title="Hide exam countdown"
-              >
-                <X size={14} />
-              </button>
-              <Target size={36} className="text-brand-200 opacity-50" />
+            <span className="text-xs text-brand-400">{daysUntilExam}d</span>
+          </motion.button>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-2xl p-4 text-white"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-brand-100 text-xs font-medium">Next exam in</p>
+                <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
+                <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={dismissExamBanner}
+                  className="text-brand-200 hover:text-white transition p-0.5 rounded"
+                  title="Hide exam countdown"
+                >
+                  <X size={14} />
+                </button>
+                <Target size={36} className="text-brand-200 opacity-50" />
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )
       )}
 
       {/* Stats row */}

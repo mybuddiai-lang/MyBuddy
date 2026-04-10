@@ -14,8 +14,12 @@ export const metadata: Metadata = {
   description: 'Your AI-powered academic companion. Beat burnout, master your material, and thrive.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icons/icon-192.png',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
     apple: '/icons/icon-192.png',
+    shortcut: '/favicon.svg',
   },
   appleWebApp: {
     capable: true,
