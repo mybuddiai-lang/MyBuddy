@@ -39,38 +39,6 @@ export class CommunityService {
     return memberships.map(m => this.mapCommunity(m.community, m.role));
   }
 
-  // ─── Default communities ──────────────────────────────────────────────────
-
-  private readonly DEFAULT_COMMUNITIES = [
-    { name: 'MBBS Finals 2026', description: 'Study group for final year medical students preparing for finals', subjectFilter: 'Medicine' },
-    { name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates — case laws, essays, moots', subjectFilter: 'Law' },
-    { name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics and beyond', subjectFilter: 'Engineering' },
-    { name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', subjectFilter: 'Accounting' },
-    { name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', subjectFilter: 'Pharmacy' },
-  ];
-
-  async ensureDefaults(userId: string) {
-    const created: any[] = [];
-    for (const def of this.DEFAULT_COMMUNITIES) {
-      let community = await this.prisma.community.findFirst({ where: { name: def.name } });
-      if (!community) {
-        community = await this.prisma.community.create({
-          data: { ...def, createdBy: userId, isPublic: true, requiresApproval: false },
-        });
-        await this.prisma.communityMember.create({
-          data: { communityId: community.id, userId, role: 'ADMIN' },
-        });
-      }
-      created.push(community);
-    }
-    const memberships = await this.prisma.communityMember.findMany({
-      where: { userId, communityId: { in: created.map(c => c.id) } },
-      select: { communityId: true, role: true },
-    });
-    const memberMap = Object.fromEntries(memberships.map(m => [m.communityId, m.role]));
-    return created.map(c => this.mapCommunity(c, memberMap[c.id] ?? null));
-  }
-
   async create(userId: string, data: { name: string; description?: string; isPublic?: boolean; requiresApproval?: boolean; schoolFilter?: string; subjectFilter?: string }) {
     const community = await this.prisma.community.create({
       data: { ...data, createdBy: userId, isPublic: data.isPublic ?? true },

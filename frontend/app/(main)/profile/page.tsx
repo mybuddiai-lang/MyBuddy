@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { useUIStore } from '@/lib/store/ui.store';
 import { useRouter } from 'next/navigation';
 import { LogOut, Bell, CreditCard, Shield, ChevronRight, Flame, Brain, Target, Star, Pencil, X, Check, Trophy, LayoutDashboard } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
@@ -34,16 +35,8 @@ export default function ProfilePage() {
     ? differenceInDays(new Date(user.examDate), new Date())
     : null;
 
-  const [examBannerHidden, setExamBannerHidden] = useState(false);
-
-  useEffect(() => {
-    setExamBannerHidden(localStorage.getItem('buddi_exam_hidden') === 'true');
-  }, []);
-
-  const dismissExamBanner = () => {
-    setExamBannerHidden(true);
-    localStorage.setItem('buddi_exam_hidden', 'true');
-  };
+  const { examBannerHidden, setExamBannerHidden } = useUIStore();
+  const dismissExamBanner = () => setExamBannerHidden(true);
 
   const handleLogout = () => {
     logout();

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { useUIStore } from '@/lib/store/ui.store';
 import { useStats } from '@/lib/hooks/use-stats';
 import { useReminders } from '@/lib/hooks/use-reminders';
 import { differenceInDays } from 'date-fns';
@@ -34,16 +34,9 @@ export default function HomePage() {
   const resilienceScore = stats.resilienceScore ?? user?.resilienceScore ?? 50;
   const studyStreak = stats.studyStreak ?? user?.studyStreak ?? 0;
 
-  const [examBannerHidden, setExamBannerHidden] = useState(false);
+  const { examBannerHidden, setExamBannerHidden } = useUIStore();
 
-  useEffect(() => {
-    setExamBannerHidden(localStorage.getItem('buddi_exam_hidden') === 'true');
-  }, []);
-
-  const dismissExamBanner = () => {
-    setExamBannerHidden(true);
-    localStorage.setItem('buddi_exam_hidden', 'true');
-  };
+  const dismissExamBanner = () => setExamBannerHidden(true);
 
   return (
     <div className="px-4 py-4 space-y-5 pb-6">
@@ -59,10 +52,7 @@ export default function HomePage() {
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            onClick={() => {
-              setExamBannerHidden(false);
-              localStorage.setItem('buddi_exam_hidden', 'false');
-            }}
+            onClick={() => setExamBannerHidden(false)}
             className="w-full flex items-center justify-between bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800 rounded-xl px-4 py-2.5 text-left"
           >
             <div className="flex items-center gap-2.5">

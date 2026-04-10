@@ -35,12 +35,6 @@ export class CommunityController {
     });
   }
 
-  @Get('defaults')
-  @ApiOperation({ summary: 'Ensure default communities exist and return them' })
-  getDefaults(@CurrentUser('id') userId: string) {
-    return this.communityService.ensureDefaults(userId);
-  }
-
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.communityService.findOne(id);

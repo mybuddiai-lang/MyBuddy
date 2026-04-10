@@ -62,26 +62,13 @@ export default function CommunityPage() {
   const [joining, setJoining] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      communityApi.getAll().catch(() => null),
-      communityApi.getDefaults().catch(() => null),
-    ]).then(([allRaw, defaultsRaw]) => {
-      const all: any[] = (allRaw as any)?.data?.data ?? (allRaw as any)?.data ?? [];
-      const defaults: any[] = (defaultsRaw as any)?.data?.data ?? (defaultsRaw as any)?.data ?? [];
-
-      // Merge all + defaults, deduplicate by id
-      const seen = new Set<string>();
-      const merged: Pod[] = [];
-      for (const p of [...all, ...defaults]) {
-        if (p?.id && !seen.has(p.id)) {
-          seen.add(p.id);
-          merged.push(normalisePod(p));
-        }
-      }
-
-      setPods(merged);
-      setLoading(false);
-    });
+    communityApi.getAll()
+      .then(res => {
+        const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
+        setPods(list.filter(p => p?.id).map(normalisePod));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const myPods = pods.filter(p => p.isMember);

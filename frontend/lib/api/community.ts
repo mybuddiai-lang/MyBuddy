@@ -97,7 +97,6 @@ export const communityApi = {
   // Communities
   getAll: () => apiClient.get('/community'),
   getMy: () => apiClient.get('/community/my'),
-  getDefaults: () => apiClient.get('/community/defaults'),
   create: (data: CreateCommunityDto) => apiClient.post('/community', data),
   getOne: (communityId: string) => apiClient.get(`/community/${communityId}`),
   join: (communityId: string) => apiClient.post(`/community/${communityId}/join`),
