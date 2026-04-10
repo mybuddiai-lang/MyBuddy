@@ -34,19 +34,20 @@ const SUBJECT_COLORS: Record<string, string> = {
 
 const COLOR_LIST = Object.values(SUBJECT_COLORS);
 
-function getColor(pod: Pod): string {
+function getColor(pod: Partial<Pod>): string {
   const key = pod.field || pod.subject || '';
-  return SUBJECT_COLORS[key] || COLOR_LIST[Math.abs(pod.id.charCodeAt(0)) % COLOR_LIST.length];
+  return SUBJECT_COLORS[key] || COLOR_LIST[Math.abs((pod.id?.charCodeAt(0) ?? 0)) % COLOR_LIST.length];
 }
 
-// Static discover pods — always visible regardless of API state
-const DISCOVER_DUMMIES: Pod[] = [
-  { id: 'disc-1', name: 'MBBS Finals 2026', description: 'Study group for final year medical students preparing for finals', memberCount: 48, isPublic: true, field: 'Medicine', lastActivity: '2m ago', isMember: false, color: 'bg-red-100 text-red-600' },
-  { id: 'disc-2', name: 'Bar Exam Prep', description: 'Nigerian Bar 2026 candidates — case laws, essays, moots', memberCount: 67, isPublic: true, field: 'Law', lastActivity: '15m ago', isMember: false, color: 'bg-amber-100 text-amber-600' },
-  { id: 'disc-3', name: 'Engineering Survivors', description: 'For engineering students surviving thermodynamics and beyond', memberCount: 31, isPublic: true, field: 'Engineering', lastActivity: '3h ago', isMember: false, color: 'bg-green-100 text-green-600' },
-  { id: 'disc-4', name: 'ICAN 2026 Prep', description: 'Accounting students prepping for ICAN professional exams', memberCount: 19, isPublic: true, field: 'Accounting', lastActivity: '5h ago', isMember: false, color: 'bg-purple-100 text-purple-600' },
-  { id: 'disc-5', name: 'Pharm D Cohort', description: 'PharmD students sharing resources and study schedules', memberCount: 42, isPublic: true, field: 'Pharmacy', lastActivity: '30m ago', isMember: false, color: 'bg-teal-100 text-teal-600' },
-];
+function normalisePod(p: any): Pod {
+  const field = p.field || p.subjectFilter || 'General';
+  return {
+    ...p,
+    field,
+    isMember: !!p.myRole,
+    color: getColor({ ...p, field }),
+  };
+}
 
 export default function CommunityPage() {
   const router = useRouter();
@@ -58,32 +59,27 @@ export default function CommunityPage() {
   const [newPodSubject, setNewPodSubject] = useState('');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [joining, setJoining] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       communityApi.getAll().catch(() => null),
-      communityApi.getMy().catch(() => null),
-    ]).then(([allRaw, myRaw]) => {
+      communityApi.getDefaults().catch(() => null),
+    ]).then(([allRaw, defaultsRaw]) => {
       const all: any[] = (allRaw as any)?.data?.data ?? (allRaw as any)?.data ?? [];
-      const myList: any[] = (myRaw as any)?.data?.data ?? (myRaw as any)?.data ?? [];
-      const myIds = new Set(Array.isArray(myList) ? myList.map((p: any) => p.id) : []);
+      const defaults: any[] = (defaultsRaw as any)?.data?.data ?? (defaultsRaw as any)?.data ?? [];
 
-      const apiPods: Pod[] = Array.isArray(all) && all.length > 0
-        ? all.map((p: any) => ({
-            ...p,
-            field: p.field || p.subjectFilter || 'General',
-            isMember: myIds.has(p.id),
-            color: getColor({ ...p, field: p.field }),
-          }))
-        : [];
+      // Merge all + defaults, deduplicate by id
+      const seen = new Set<string>();
+      const merged: Pod[] = [];
+      for (const p of [...all, ...defaults]) {
+        if (p?.id && !seen.has(p.id)) {
+          seen.add(p.id);
+          merged.push(normalisePod(p));
+        }
+      }
 
-      // Merge API my-pods + static discover dummies (deduped by id AND name)
-      const apiIds = new Set(apiPods.map(p => p.id));
-      const apiNames = new Set(apiPods.map(p => p.name.toLowerCase().trim()));
-      const mergedDiscover = DISCOVER_DUMMIES.filter(
-        d => !apiIds.has(d.id) && !apiNames.has(d.name.toLowerCase().trim()),
-      );
-      setPods([...apiPods, ...mergedDiscover]);
+      setPods(merged);
       setLoading(false);
     });
   }, []);
@@ -101,71 +97,39 @@ export default function CommunityPage() {
   );
 
   const handleJoin = async (podId: string) => {
-    // Dummy discover pod — find or create the real community, then join it
-    const dummy = DISCOVER_DUMMIES.find(d => d.id === podId);
-    if (dummy) {
-      try {
-        // First check if a real community with this name already exists
-        const allRes = await communityApi.getAll();
-        const allPods: any[] = (allRes as any)?.data?.data ?? (allRes as any)?.data ?? [];
-        const existing = allPods.find(
-          (p: any) => p.name.toLowerCase().trim() === dummy.name.toLowerCase().trim(),
-        );
-
-        let realCommunity: any = existing;
-
-        if (!realCommunity) {
-          // No real community yet — create it (creator is added as ADMIN member automatically)
-          const createRes = await communityApi.create({
-            name: dummy.name,
-            description: dummy.description,
-            field: dummy.field || 'General',
-          });
-          realCommunity = (createRes as any)?.data?.data ?? (createRes as any)?.data;
-        } else {
-          // Already exists — join it
-          const joinRes = await communityApi.join(realCommunity.id).catch(() => null);
-          const joinData = (joinRes as any)?.data?.data ?? (joinRes as any)?.data;
-          if (joinData?.pending) {
-            toast.success('Join request sent! Waiting for admin approval.');
-            return;
-          }
-        }
-
-        if (realCommunity?.id) {
-          setPods(prev => prev.map(p =>
-            p.id === podId
-              ? { ...dummy, ...realCommunity, isMember: true, color: dummy.color }
-              : p,
-          ));
-          toast.success('Joined the pod!');
-        }
-      } catch {
-        toast.error('Could not join — try again');
-      }
-      return;
-    }
-
-    // Normal join flow (real community ID)
+    if (joining) return;
+    setJoining(podId);
     try {
       const res = await communityApi.join(podId);
       const data = (res as any)?.data?.data ?? (res as any)?.data;
       if (data?.pending) {
         toast.success('Join request sent! Waiting for admin approval.');
       } else {
-        setPods(prev => prev.map(p => p.id === podId ? { ...p, isMember: true, memberCount: p.memberCount + 1 } : p));
-        toast.success('Joined the pod!');
+        setPods(prev => prev.map(p =>
+          p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER', memberCount: (p.memberCount || 0) + 1 } : p
+        ));
+        toast.success('Joined! Tap "Open Pod" to get started.');
       }
-    } catch {
-      toast.error('Could not join — try again');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 409) {
+        // Already a member — sync state
+        setPods(prev => prev.map(p => p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER' } : p));
+        toast.success('You\'re already in this pod!');
+      } else {
+        toast.error('Could not join — please try again');
+      }
+    } finally {
+      setJoining(null);
     }
   };
 
   const handleCreate = async () => {
     if (!newPodName.trim()) return toast.error('Give your pod a name');
     setCreating(true);
+    const tempId = `pod-${Date.now()}`;
     const optimisticPod: Pod = {
-      id: `pod-${Date.now()}`,
+      id: tempId,
       name: newPodName,
       description: `A study pod for ${newPodSubject || 'students'}`,
       memberCount: 1,
@@ -173,6 +137,7 @@ export default function CommunityPage() {
       field: newPodSubject || 'General',
       lastActivity: 'Just now',
       isMember: true,
+      myRole: 'ADMIN',
       color: SUBJECT_COLORS[newPodSubject] || 'bg-brand-100 text-brand-600',
     };
     setPods(prev => [optimisticPod, ...prev]);
@@ -182,12 +147,12 @@ export default function CommunityPage() {
     toast.success('Pod created! Share it with your classmates.');
     try {
       const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
-      const created = (res as any)?.data?.data;
+      const created = (res as any)?.data?.data ?? (res as any)?.data;
       if (created?.id) {
-        setPods(prev => prev.map(p => p.id === optimisticPod.id ? { ...created, isMember: true, color: optimisticPod.color } : p));
+        setPods(prev => prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p));
       }
     } catch {
-      // keep optimistic pod
+      // keep optimistic pod — user can still see their pod in the list
     }
     setCreating(false);
   };
@@ -227,7 +192,7 @@ export default function CommunityPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
           >
             {tab === 'my' ? `My Pods (${myPods.length})` : `Discover (${discoverPods.length})`}
           </button>
@@ -254,6 +219,7 @@ export default function CommunityPage() {
         {!loading && displayList.map((pod, i) => {
           const isPrivate = pod.isPrivate ?? !pod.isPublic;
           const podColor = pod.color || getColor(pod);
+          const isJoining = joining === pod.id;
           return (
             <motion.div
               key={pod.id}
@@ -296,9 +262,10 @@ export default function CommunityPage() {
                 ) : (
                   <button
                     onClick={() => handleJoin(pod.id)}
-                    className="text-xs bg-brand-50 text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg font-medium hover:bg-brand-100 transition shrink-0"
+                    disabled={isJoining}
+                    className="text-xs bg-brand-500 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-brand-600 disabled:opacity-60 transition shrink-0"
                   >
-                    Join
+                    {isJoining ? '...' : 'Join'}
                   </button>
                 )}
               </div>
@@ -317,8 +284,8 @@ export default function CommunityPage() {
         {!loading && displayList.length === 0 && (
           <div className="text-center py-12">
             <p className="text-4xl mb-3">👥</p>
-            <p className="text-zinc-600 font-medium">{activeTab === 'my' ? 'No pods yet' : 'No matching pods'}</p>
-            <p className="text-zinc-400 text-sm mt-1">{activeTab === 'my' ? 'Join or create a study pod' : 'Try a different search'}</p>
+            <p className="text-zinc-600 dark:text-zinc-400 font-medium">{activeTab === 'my' ? 'No pods yet' : 'No matching pods'}</p>
+            <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1">{activeTab === 'my' ? 'Join or create a study pod' : 'Try a different search'}</p>
           </div>
         )}
       </div>
@@ -348,7 +315,7 @@ export default function CommunityPage() {
               placeholder="Subject / field (e.g. Medicine, Law)"
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
             />
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">Your pod will be public by default. You can make it private after creation.</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Your pod will be public by default. Anyone can join.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">Cancel</button>
               <button

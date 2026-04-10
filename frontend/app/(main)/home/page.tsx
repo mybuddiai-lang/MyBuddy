@@ -37,23 +37,12 @@ export default function HomePage() {
   const [examBannerHidden, setExamBannerHidden] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('buddi_notif_prefs');
-      if (saved) {
-        const prefs = JSON.parse(saved);
-        if (prefs.exam === false) setExamBannerHidden(true);
-      }
-    } catch { /* ignore */ }
+    setExamBannerHidden(localStorage.getItem('buddi_exam_hidden') === 'true');
   }, []);
 
   const dismissExamBanner = () => {
     setExamBannerHidden(true);
-    try {
-      const saved = localStorage.getItem('buddi_notif_prefs');
-      const prefs = saved ? JSON.parse(saved) : {};
-      prefs.exam = false;
-      localStorage.setItem('buddi_notif_prefs', JSON.stringify(prefs));
-    } catch { /* ignore */ }
+    localStorage.setItem('buddi_exam_hidden', 'true');
   };
 
   return (

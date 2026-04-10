@@ -28,14 +28,25 @@ export default function NotificationsPage() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('buddi_notif_prefs');
-      if (saved) {
-        const prefs: Record<string, boolean> = JSON.parse(saved);
-        setSettings(prev => prev.map(s => ({ ...s, enabled: prefs[s.id] ?? s.enabled })));
-      }
+      const prefs: Record<string, boolean> = saved ? JSON.parse(saved) : {};
+      // exam toggle is driven by dedicated key for immediate effect
+      const examHidden = localStorage.getItem('buddi_exam_hidden') === 'true';
+      prefs.exam = !examHidden;
+      setSettings(prev => prev.map(s => ({ ...s, enabled: prefs[s.id] ?? s.enabled })));
     } catch { /* ignore */ }
   }, []);
 
-  const toggle = (id: string) => setSettings(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
+  const toggle = (id: string) => {
+    setSettings(prev => {
+      const next = prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s);
+      // Exam countdown toggle takes immediate effect on the banner
+      if (id === 'exam') {
+        const nowEnabled = next.find(s => s.id === 'exam')?.enabled ?? true;
+        localStorage.setItem('buddi_exam_hidden', nowEnabled ? 'false' : 'true');
+      }
+      return next;
+    });
+  };
 
   const handleSave = async () => {
     setSaving(true);
