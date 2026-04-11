@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Bell, Brain, MessageCircle, Calendar, Users, Smartphone, AlertCircle, CheckCircle } from 'lucide-react';
@@ -24,14 +24,14 @@ const BASE_SETTINGS: Omit<NotifSetting, 'enabled'>[] = [
   { id: 'exam',      label: 'Exam Countdown',     desc: 'Show countdown banner on your home screen',     icon: Bell },
 ];
 
-const DEFAULT_ENABLED: Record<string, boolean> = {
+const NON_EXAM_DEFAULTS: Record<string, boolean> = {
   recall: true,
   study: true,
   chat: false,
   community: true,
-  exam: true,
 };
 
+// Proper iOS-style toggle: absolute thumb with 2 px padding on all sides
 function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
     <button
@@ -39,12 +39,13 @@ function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void 
       role="switch"
       aria-checked={enabled}
       onClick={onToggle}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+      className={`relative inline-flex w-11 h-6 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
         enabled ? 'bg-brand-500' : 'bg-zinc-300 dark:bg-zinc-600'
       }`}
     >
+      {/* Absolute thumb — top-0.5 left-0.5 gives 2 px inset; translate-x-5 slides it right */}
       <span
-        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
           enabled ? 'translate-x-5' : 'translate-x-0'
         }`}
       />
@@ -55,50 +56,53 @@ function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void 
 export default function NotificationsPage() {
   const router = useRouter();
   const { state: pushState, subscribe, unsubscribe, error: pushError } = usePushNotifications();
+
+  // Exam visibility is owned entirely by UIStore — no local copy
   const { examBannerHidden, setExamBannerHidden } = useUIStore();
 
-  const [settings, setSettings] = useState<NotifSetting[]>(() =>
-    BASE_SETTINGS.map(s => ({ ...s, enabled: DEFAULT_ENABLED[s.id] ?? true }))
-  );
+  // Only non-exam toggles live in local state
+  const [settings, setSettings] = useState<Record<string, boolean>>(NON_EXAM_DEFAULTS);
   const [saving, setSaving] = useState(false);
 
-  // Load saved preferences; exam state comes from UIStore
+  // Load saved non-exam prefs from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem('buddi_notif_prefs');
-      const prefs: Record<string, boolean> = saved ? JSON.parse(saved) : {};
-      setSettings(prev =>
-        prev.map(s => {
-          if (s.id === 'exam') return { ...s, enabled: !examBannerHidden };
-          return { ...s, enabled: prefs[s.id] ?? s.enabled };
-        })
-      );
+      if (!saved) return;
+      const prefs: Record<string, boolean> = JSON.parse(saved);
+      setSettings(prev => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(prefs).filter(([k]) => k !== 'exam')
+        ),
+      }));
     } catch { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep exam toggle in sync with UIStore (reacts immediately when store changes)
-  useEffect(() => {
-    setSettings(prev =>
-      prev.map(s => (s.id === 'exam' ? { ...s, enabled: !examBannerHidden } : s))
-    );
-  }, [examBannerHidden]);
+  // Merge exam from UIStore into the display list — single source of truth
+  const displaySettings: NotifSetting[] = useMemo(
+    () =>
+      BASE_SETTINGS.map(s =>
+        s.id === 'exam'
+          ? { ...s, enabled: !examBannerHidden }
+          : { ...s, enabled: settings[s.id] ?? NON_EXAM_DEFAULTS[s.id] ?? true }
+      ),
+    [settings, examBannerHidden]
+  );
 
   const toggle = (id: string) => {
-    setSettings(prev => {
-      const next = prev.map(s => (s.id === id ? { ...s, enabled: !s.enabled } : s));
-      if (id === 'exam') {
-        const nowEnabled = next.find(s => s.id === 'exam')?.enabled ?? true;
-        setExamBannerHidden(!nowEnabled);
-      }
-      return next;
-    });
+    if (id === 'exam') {
+      // Directly flip the UIStore — no local state involved
+      setExamBannerHidden(!examBannerHidden);
+    } else {
+      setSettings(prev => ({ ...prev, [id]: !prev[id] }));
+    }
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const prefs = Object.fromEntries(settings.map(s => [s.id, s.enabled]));
+      const prefs = { ...settings, exam: !examBannerHidden };
       localStorage.setItem('buddi_notif_prefs', JSON.stringify(prefs));
       toast.success('Preferences saved');
     } catch {
@@ -119,10 +123,10 @@ export default function NotificationsPage() {
     }
   };
 
-  const isPushActive = pushState === 'subscribed';
+  const isPushActive  = pushState === 'subscribed';
   const pushUnsupported = pushState === 'unsupported';
-  const pushDenied = pushState === 'denied';
-  const pushLoading = pushState === 'loading';
+  const pushDenied    = pushState === 'denied';
+  const pushLoading   = pushState === 'loading';
 
   return (
     <div className="px-4 py-4 pb-8 space-y-5">
@@ -191,13 +195,13 @@ export default function NotificationsPage() {
 
       {/* Notification type toggles */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-card overflow-hidden">
-        {settings.map(({ id, label, desc, icon: Icon, enabled }, i) => (
+        {displaySettings.map(({ id, label, desc, icon: Icon, enabled }, i) => (
           <motion.div
             key={id}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.05 }}
-            className={`flex items-center gap-3 px-4 py-3.5 ${i < settings.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800' : ''}`}
+            className={`flex items-center gap-3 px-4 py-3.5 ${i < displaySettings.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800' : ''}`}
           >
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${enabled ? 'bg-brand-50 dark:bg-brand-900/30' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
               <Icon size={16} className={enabled ? 'text-brand-600 dark:text-brand-400' : 'text-zinc-400 dark:text-zinc-500'} />
