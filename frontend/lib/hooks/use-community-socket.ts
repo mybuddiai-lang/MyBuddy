@@ -31,8 +31,7 @@ export function useCommunitySocket(communityId: string, handlers: CommunitySocke
       ? localStorage.getItem('buddi_access_token')
       : null;
 
-    const socket = io(WS_URL, {
-      path: '/ws/socket.io',
+    const socket = io(`${WS_URL}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,

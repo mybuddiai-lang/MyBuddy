@@ -107,6 +107,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     setReplies(prev => [...prev, optimistic]);
     setReplyText('');
     setAttachFile(null);
+    setAttachType(null);
 
     try {
       // In a real app, you'd upload the file to S3 first and get a URL back.

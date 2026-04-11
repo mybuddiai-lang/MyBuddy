@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Users, Plus, Hash, Lock, ChevronRight, MessageCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 import { communityApi } from '@/lib/api/community';
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 interface Pod {
   id: string;
@@ -69,6 +72,25 @@ export default function CommunityPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  // Listen for communities created by other users in real-time
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) return;
+    const socket = io(`${WS_URL}/ws`, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 3,
+    });
+    socket.on('community:new', (newPod: any) => {
+      if (!newPod?.id) return;
+      setPods(prev => {
+        if (prev.some(p => p.id === newPod.id)) return prev;
+        return [normalisePod(newPod), ...prev];
+      });
+    });
+    return () => { socket.disconnect(); };
   }, []);
 
   const myPods = pods.filter(p => p.isMember);

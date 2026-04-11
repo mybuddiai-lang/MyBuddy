@@ -46,7 +46,9 @@ export class CommunityService {
     await this.prisma.communityMember.create({
       data: { communityId: community.id, userId, role: 'ADMIN' },
     });
-    return this.mapCommunity(community, 'ADMIN');
+    const result = this.mapCommunity(community, 'ADMIN');
+    this.gateway?.broadcast('community:new', result);
+    return result;
   }
 
   async findOne(id: string) {
