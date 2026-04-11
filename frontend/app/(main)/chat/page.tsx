@@ -59,9 +59,14 @@ export default function ChatPage() {
     });
   }, []);
 
+  // Only scroll to bottom when real messages exist or assistant is typing.
+  // Intentionally excludes showDemo so loading the sample conversation
+  // doesn't jump to the bottom and hide the header.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping, showDemo]);
+    if (messages.length > 0 || isTyping) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isTyping]);
 
   const displayMessages = messages.length > 0 ? messages : (showDemo ? DEMO_MESSAGES : []);
 
@@ -95,7 +100,14 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)]">
+    <div
+      className="flex flex-col"
+      style={{
+        // 56px = header content, 64px = nav content.
+        // env() values are non-zero now that viewport-fit=cover is active.
+        height: 'calc(100dvh - 56px - 64px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
         {isLoadingHistory ? (
