@@ -38,18 +38,16 @@ export function TopHeader() {
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800 safe-area-top">
       <div className="flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-2">
-          {showBack ? (
+          {showBack && (
             <button
               onClick={() => backHref ? router.push(backHref) : router.back()}
               className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition mr-1"
             >
               <ArrowLeft size={16} className="text-zinc-600 dark:text-zinc-400" />
             </button>
-          ) : isHome ? (
-            <img src="/icons/icon.svg" alt="Buddi" className="w-8 h-8 rounded-xl" />
-          ) : null}
+          )}
           {isHome ? (
-            <img src="/icons/logo.svg" alt="buddi" className="h-6" />
+            <img src="/icons/logo.svg" alt="Buddi" className="h-6" />
           ) : (
             <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50">{title}</span>
           )}
