@@ -24,7 +24,9 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'Buddi',
-    statusBarStyle: 'default',
+    // black-translucent lets the status bar overlay the app with our brand
+    // colour showing through, matching the themed splash + header treatment.
+    statusBarStyle: 'black-translucent',
   },
   openGraph: {
     title: 'Buddi — Student Resilience Infrastructure',

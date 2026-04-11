@@ -2,7 +2,69 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store/auth.store';
+
+function SplashScreen() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+      {/* Logo */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.7 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+        className="flex flex-col items-center gap-6"
+      >
+        {/* Icon mark */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.05 }}
+          className="w-20 h-20 rounded-3xl bg-brand-500 flex items-center justify-center shadow-xl shadow-brand-500/30"
+        >
+          <img src="/icons/icon.svg" alt="" className="w-12 h-12" />
+        </motion.div>
+
+        {/* Wordmark */}
+        <motion.img
+          src="/icons/logo.svg"
+          alt="Buddi"
+          className="h-8"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+        />
+
+        {/* Tagline */}
+        <motion.p
+          className="text-xs text-zinc-400 dark:text-zinc-500 tracking-wide"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.35 }}
+        >
+          Your study companion
+        </motion.p>
+      </motion.div>
+
+      {/* Loading dots */}
+      <motion.div
+        className="absolute bottom-16 flex items-center gap-2"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+      >
+        {[0, 1, 2].map(i => (
+          <motion.span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full bg-brand-400"
+            animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 0.9, delay: i * 0.2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        ))}
+      </motion.div>
+    </div>
+  );
+}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -26,18 +88,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [hydrated, isAuthenticated, user, router]);
 
-  // Show spinner while hydrating or while redirect is in progress
+  // Show animated splash while hydrating or while redirect is in progress
   if (!hydrated || !isAuthenticated || !user?.school) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center shadow-lg">
-            <span className="text-white text-2xl font-bold">B</span>
-          </div>
-          <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   return <>{children}</>;
