@@ -23,6 +23,16 @@ export class FilesController {
     return this.filesService.upload(userId, file, title);
   }
 
+  @Post('upload-attachment')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  uploadAttachment(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.filesService.uploadAttachment(userId, file);
+  }
+
   @Get()
   findAll(@CurrentUser('id') userId: string) {
     return this.filesService.findAll(userId);

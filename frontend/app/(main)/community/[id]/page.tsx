@@ -93,15 +93,28 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     if (!replyText.trim() && !attachFile) return;
     setSending(true);
 
-    // Optimistic update
+    // Upload file to Cloudflare R2 first
+    let resolvedUrl: string | undefined;
+    let resolvedType = attachType;
+    if (attachFile) {
+      try {
+        const uploadRes = await communityApi.uploadAttachment(attachFile);
+        const uploadData = (uploadRes as any)?.data?.data ?? (uploadRes as any)?.data;
+        resolvedUrl = uploadData?.url;
+        resolvedType = uploadData?.type ?? attachType;
+      } catch {
+        // continue without attachment
+      }
+    }
+
     const optimistic: CommunityPostReply = {
       id: `local-${Date.now()}`,
       postId,
       authorId: userId,
       author: { id: userId, name: 'You' },
       content: replyText.trim(),
-      attachmentUrl: attachFile ? URL.createObjectURL(attachFile) : undefined,
-      attachmentType: attachType ?? undefined,
+      attachmentUrl: resolvedUrl ?? (attachFile ? URL.createObjectURL(attachFile) : undefined),
+      attachmentType: resolvedType ?? undefined,
       createdAt: new Date().toISOString(),
     };
     setReplies(prev => [...prev, optimistic]);
@@ -110,11 +123,10 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     setAttachType(null);
 
     try {
-      // In a real app, you'd upload the file to S3 first and get a URL back.
-      // Here we send without actual upload URL for now.
       const res = await communityApi.createReply(communityId, postId, {
         content: optimistic.content,
-        attachmentType: attachType ?? undefined,
+        attachmentUrl: resolvedUrl,
+        attachmentType: resolvedType ?? undefined,
       });
       const created = (res as any)?.data?.data;
       if (created?.id) {
@@ -631,13 +643,28 @@ export default function PodDetailPage() {
     const content = newPost.trim();
     const file = postAttachFile;
     const attachType = postAttachType;
+
+    // Upload file to Cloudflare R2 first, then create the post with the real URL
+    let resolvedUrl: string | undefined;
+    let resolvedType = attachType;
+    if (file) {
+      try {
+        const uploadRes = await communityApi.uploadAttachment(file);
+        const uploadData = (uploadRes as any)?.data?.data ?? (uploadRes as any)?.data;
+        resolvedUrl = uploadData?.url;
+        resolvedType = uploadData?.type ?? attachType;
+      } catch {
+        toast.error('File upload failed — posting without attachment.');
+      }
+    }
+
     const optimistic: any = {
       id: `local-${Date.now()}`,
       authorId: user?.id || '',
       author: { id: user?.id || '', name: user?.name || 'You' },
       content,
-      attachmentUrl: file ? URL.createObjectURL(file) : undefined,
-      attachmentType: attachType ?? undefined,
+      attachmentUrl: resolvedUrl ?? (file ? URL.createObjectURL(file) : undefined),
+      attachmentType: resolvedType ?? undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
@@ -653,7 +680,8 @@ export default function PodDetailPage() {
     try {
       const res = await communityApi.createPost(id, {
         content,
-        attachmentType: attachType ?? undefined,
+        attachmentUrl: resolvedUrl,
+        attachmentType: resolvedType ?? undefined,
       });
       const created = (res as any)?.data?.data;
       if (created?.id) {

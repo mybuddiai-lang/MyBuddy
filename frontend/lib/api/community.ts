@@ -135,6 +135,13 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
+  // Attachment upload (Cloudflare R2) — returns { url, type } for use in posts/replies
+  uploadAttachment: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }>('/files/upload-attachment', form);
+  },
+
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),
   createPoll: (communityId: string, data: { question: string; options: string[]; endsAt?: string }) =>

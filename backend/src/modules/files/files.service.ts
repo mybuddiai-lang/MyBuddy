@@ -13,6 +13,8 @@ export class FilesService {
   private s3: S3Client;
   private bucket: string;
 
+  private publicUrl: string;
+
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
@@ -20,12 +22,14 @@ export class FilesService {
     private eventEmitter: EventEmitter2,
     private analyticsService: AnalyticsService,
   ) {
-    this.bucket = config.get<string>('AWS_S3_BUCKET', 'buddi-uploads');
+    this.bucket = config.get<string>('CLOUDFLARE_R2_BUCKET', 'buddi-uploads');
+    this.publicUrl = config.get<string>('CLOUDFLARE_R2_PUBLIC_URL', '');
     this.s3 = new S3Client({
-      region: config.get<string>('AWS_REGION', 'us-east-1'),
+      region: 'auto',
+      endpoint: `https://${config.get('CLOUDFLARE_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
       credentials: {
-        accessKeyId: config.get<string>('AWS_ACCESS_KEY_ID', ''),
-        secretAccessKey: config.get<string>('AWS_SECRET_ACCESS_KEY', ''),
+        accessKeyId: config.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID', ''),
+        secretAccessKey: config.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY', ''),
       },
     });
   }
@@ -34,7 +38,7 @@ export class FilesService {
     const key = `uploads/${userId}/${uuidv4()}-${file.originalname}`;
     const fileType = this.detectFileType(file.mimetype, file.originalname);
 
-    // Upload to S3
+    // Upload to Cloudflare R2
     let fileUrl = '';
     try {
       await this.s3.send(new PutObjectCommand({
@@ -43,9 +47,9 @@ export class FilesService {
         Body: file.buffer,
         ContentType: file.mimetype,
       }));
-      fileUrl = `https://${this.bucket}.s3.amazonaws.com/${key}`;
+      fileUrl = `${this.publicUrl}/${key}`;
     } catch (err) {
-      this.logger.warn('S3 upload failed, storing locally', err);
+      this.logger.warn('R2 upload failed, storing locally', err);
       fileUrl = `/uploads/${file.originalname}`;
     }
 
@@ -144,6 +148,20 @@ export class FilesService {
       const failed = await this.prisma.note.update({ where: { id: noteId }, data: { processingStatus: 'FAILED' }, select: { userId: true } });
       this.eventEmitter.emit('note.failed', { noteId, userId: failed.userId });
     }
+  }
+
+  // Lightweight upload for community post/reply attachments — no Note record, no AI processing
+  async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
+    const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }));
+    const url = `${this.publicUrl}/${key}`;
+    const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
+    return { url, type };
   }
 
   async findAll(userId: string) {
