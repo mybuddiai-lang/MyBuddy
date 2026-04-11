@@ -39,6 +39,9 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: '#6b5cf6',
+  // Required for env(safe-area-inset-*) to return real values on iOS PWA.
+  // Without this the bottom nav sits behind the home indicator.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
