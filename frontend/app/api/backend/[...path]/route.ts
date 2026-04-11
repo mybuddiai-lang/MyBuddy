@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// BACKEND_API_URL is a server-only var — read from process.env at runtime (not inlined at build time like NEXT_PUBLIC_* vars)
-const BACKEND = process.env.BACKEND_API_URL || 'http://localhost:3001/api';
+// Prefer the private BACKEND_API_URL (runtime-only); fall back to the public
+// NEXT_PUBLIC_API_URL that most Railway setups already have configured.
+const BACKEND =
+  process.env.BACKEND_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:3001/api';
 
 // Strip these from the forwarded request — origin/referer cause CORS rejection on the backend
 // since this is a server-to-server call (no browser origin needed)

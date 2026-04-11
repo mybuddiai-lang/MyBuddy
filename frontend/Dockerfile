@@ -4,7 +4,11 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-# NEXT_PUBLIC_API_URL is read at runtime by the /api/backend proxy route — no need to bake at build time
+
+# Stamp sw.js CACHE_NAME + write version.json with a unique build ID.
+# Called explicitly (not relying on pnpm lifecycle) so it always runs.
+RUN node scripts/prebuild.js
+
 ARG NEXT_PUBLIC_APP_NAME=Buddi
 ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 RUN pnpm run build
