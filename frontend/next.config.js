@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // 'standalone' is required for the Railway Docker build (Dockerfile copies .next/standalone).
+  // Vercel sets VERCEL=1 automatically and manages its own output — standalone conflicts with it.
+  output: process.env.VERCEL ? undefined : 'standalone',
   reactStrictMode: true,
   images: {
     remotePatterns: [
