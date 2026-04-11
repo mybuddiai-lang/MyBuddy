@@ -1,12 +1,15 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X } from 'lucide-react';
+import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X, CalendarDays } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStats } from '@/lib/hooks/use-stats';
 import { useReminders } from '@/lib/hooks/use-reminders';
+import { usersApi } from '@/lib/api/users';
+import toast from 'react-hot-toast';
 import { differenceInDays } from 'date-fns';
 
 // QUOTES kept as motivational content, not dummy data
@@ -21,7 +24,7 @@ const QUOTES = [
 ];
 
 export default function HomePage() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { stats } = useStats();
   const { dueReminders } = useReminders();
 
@@ -35,8 +38,28 @@ export default function HomePage() {
   const studyStreak = stats.studyStreak ?? user?.studyStreak ?? 0;
 
   const { examBannerHidden, setExamBannerHidden } = useUIStore();
-
   const dismissExamBanner = () => setExamBannerHidden(true);
+
+  // Inline exam date picker
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateInput, setDateInput] = useState('');
+  const [savingDate, setSavingDate] = useState(false);
+
+  const handleSaveExamDate = async () => {
+    if (!dateInput) return;
+    setSavingDate(true);
+    try {
+      const updated = await usersApi.updateProfile({ examDate: dateInput });
+      setUser(updated);
+      setShowDatePicker(false);
+      setDateInput('');
+      toast.success('Exam date saved!');
+    } catch {
+      toast.error('Could not save date');
+    } finally {
+      setSavingDate(false);
+    }
+  };
 
   return (
     <div className="px-4 py-4 space-y-5 pb-6">
@@ -46,83 +69,133 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{firstName} 👋</h1>
       </motion.div>
 
-      {/* Exam countdown — always visible unless dismissed */}
-      {examBannerHidden ? (
-        /* Collapsed chip — tap to restore */
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          onClick={() => setExamBannerHidden(false)}
-          className="w-full flex items-center justify-between bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800 rounded-xl px-4 py-2.5 text-left"
-        >
-          <div className="flex items-center gap-2.5">
-            <Target size={15} className="text-brand-500 shrink-0" />
-            <span className="text-sm text-brand-600 dark:text-brand-400 font-medium">Show exam countdown</span>
-          </div>
-          {daysUntilExam !== null && daysUntilExam > 0 && (
-            <span className="text-xs text-brand-400 font-medium">{daysUntilExam}d left</span>
-          )}
-        </motion.button>
-      ) : daysUntilExam !== null && daysUntilExam > 0 ? (
-        /* Full countdown banner */
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-2xl p-4 text-white"
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-brand-100 text-xs font-medium">Next exam in</p>
-              <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
-              <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
+      {/* Exam countdown — hidden entirely when toggle is off */}
+      {!examBannerHidden && (
+        daysUntilExam !== null && daysUntilExam > 0 ? (
+          /* Full countdown banner */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-2xl p-4 text-white"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-brand-100 text-xs font-medium">Next exam in</p>
+                <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
+                <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={dismissExamBanner}
+                  className="text-brand-200 hover:text-white transition p-0.5 rounded"
+                  title="Hide countdown"
+                >
+                  <X size={14} />
+                </button>
+                <Target size={36} className="text-brand-200 opacity-50" />
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
+          </motion.div>
+        ) : (
+          /* No exam date set — prompt to add inline */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3.5"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center shrink-0">
+                <CalendarDays size={16} className="text-brand-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Set your exam date</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Track your countdown from here</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDatePicker(true)}
+                className="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg"
+              >
+                Add date
+              </button>
               <button
                 onClick={dismissExamBanner}
-                className="text-brand-200 hover:text-white transition p-0.5 rounded"
-                title="Hide exam countdown"
+                className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition p-1 rounded"
+                title="Dismiss"
               >
                 <X size={14} />
               </button>
-              <Target size={36} className="text-brand-200 opacity-50" />
             </div>
-          </div>
-        </motion.div>
-      ) : (
-        /* No exam date set — prompt user to add one */
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3.5"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center shrink-0">
-              <Target size={16} className="text-brand-500" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Set your exam date</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Track your countdown from here</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/profile"
-              className="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-3 py-1.5 rounded-lg"
-            >
-              Add date
-            </Link>
-            <button
-              onClick={dismissExamBanner}
-              className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition p-1 rounded"
-              title="Dismiss"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        )
       )}
+
+      {/* Exam date picker bottom sheet */}
+      <AnimatePresence>
+        {showDatePicker && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-40"
+              onClick={() => setShowDatePicker(false)}
+            />
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-900 rounded-t-3xl px-5 pt-5 pb-10 shadow-2xl"
+            >
+              {/* Handle */}
+              <div className="w-10 h-1 rounded-full bg-zinc-200 dark:bg-zinc-700 mx-auto mb-5" />
+
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-50">When is your exam?</h2>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">We'll count down the days for you</p>
+                </div>
+                <button
+                  onClick={() => setShowDatePicker(false)}
+                  className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">
+                Exam date
+              </label>
+              <input
+                type="date"
+                value={dateInput}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setDateInput(e.target.value)}
+                className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent mb-4"
+              />
+
+              <button
+                onClick={handleSaveExamDate}
+                disabled={!dateInput || savingDate}
+                className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition text-sm"
+              >
+                {savingDate ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving…
+                  </span>
+                ) : 'Save exam date'}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">
