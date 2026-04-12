@@ -1,8 +1,12 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { io } from 'socket.io-client';
 import { slidesApi, type Note } from '@/lib/api/slides';
 import toast from 'react-hot-toast';
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 const DEMO_NOTES: Note[] = [
   {
@@ -99,6 +103,27 @@ export function useSlides() {
       queryClient.invalidateQueries({ queryKey: ['slides'] });
     },
   });
+
+  // Listen for real-time note processing status updates from the backend
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) return;
+    const socket = io(`${WS_URL}/ws`, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 3,
+    });
+    socket.on('note:status', ({ noteId, status }: { noteId: string; status: string }) => {
+      queryClient.setQueryData(['slides'], (old: Note[] = []) =>
+        old.map(n => n.id === noteId ? { ...n, processingStatus: status } : n)
+      );
+      if (status === 'DONE') {
+        // Refetch to get the summary and other fields that were populated during processing
+        queryClient.invalidateQueries({ queryKey: ['slides'] });
+      }
+    });
+    return () => { socket.disconnect(); };
+  }, [queryClient]);
 
   return {
     notes,

@@ -41,7 +41,21 @@ function relativeTime(dateStr: string): string {
 function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE' | 'VOICE' }) {
   if (!url) return null;
   if (type === 'IMAGE') {
-    return <img src={url} alt="attachment" className="mt-2 max-h-48 rounded-xl object-cover border border-zinc-100" />;
+    return (
+      <img
+        src={url}
+        alt="attachment"
+        className="mt-2 max-h-48 rounded-xl object-cover border border-zinc-100"
+        onError={e => {
+          const img = e.currentTarget;
+          img.style.display = 'none';
+          const fallback = document.createElement('div');
+          fallback.className = 'mt-2 flex items-center gap-2 text-xs text-zinc-400 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100';
+          fallback.innerHTML = '<span>🖼️ Image unavailable</span>';
+          img.parentNode?.insertBefore(fallback, img.nextSibling);
+        }}
+      />
+    );
   }
   if (type === 'VOICE') {
     return <audio controls src={url} className="mt-2 w-full h-8" />;
@@ -685,7 +699,13 @@ export default function PodDetailPage() {
       });
       const created = (res as any)?.data?.data;
       if (created?.id) {
-        setPosts(prev => prev.map(p => p.id === optimistic.id ? { ...created, liked: false } : p));
+        setPosts(prev => {
+          // Replace optimistic post, then deduplicate in case the socket already
+          // added the real post before the API response arrived.
+          const replaced = prev.map(p => p.id === optimistic.id ? { ...created, liked: false } : p);
+          const seen = new Set<string>();
+          return replaced.filter(p => !seen.has(p.id) && !!seen.add(p.id));
+        });
       }
     } catch {
       toast.error('Failed to post. Please try again.');

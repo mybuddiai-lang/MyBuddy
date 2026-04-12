@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FileText, Brain, Clock, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { io } from 'socket.io-client';
 import { slidesApi, type Note } from '@/lib/api/slides';
 import { formatDate } from '@/lib/utils';
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 interface NoteDetail extends Note {
   content?: string;
@@ -23,6 +26,7 @@ export default function NoteDetailPage() {
   const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    let mounted = true;
     const DUMMY_DETAIL: Record<string, NoteDetail> = {
       'demo-1': {
         id: 'demo-1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', processingStatus: 'DONE',
@@ -80,16 +84,51 @@ export default function NoteDetailPage() {
     if (id.startsWith('demo-')) {
       setNote(DUMMY_DETAIL[id] ?? null);
       setLoading(false);
-      return;
+      return () => { mounted = false; };
     }
 
     slidesApi.getById(id).then(data => {
+      if (!mounted) return;
       setNote(data as NoteDetail);
       setLoading(false);
     }).catch(() => {
-      setNote(DUMMY_DETAIL[id] ?? null);
+      if (!mounted) return;
+      // Never null out a real note — show a processing placeholder so the
+      // user sees their note and doesn't think it was lost.
+      setNote({
+        id,
+        title: 'Note',
+        fileType: 'PDF',
+        processingStatus: 'PROCESSING',
+        masteryLevel: 0,
+        createdAt: new Date().toISOString(),
+      });
       setLoading(false);
     });
+
+    return () => { mounted = false; };
+  }, [id]);
+
+  // Real-time processing status for uploaded (non-demo) notes
+  useEffect(() => {
+    if (id.startsWith('demo-')) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) return;
+    const socket = io(`${WS_URL}/ws`, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 3,
+    });
+    socket.on('note:status', ({ noteId, status }: { noteId: string; status: string }) => {
+      if (noteId !== id) return;
+      if (status === 'DONE') {
+        // Refetch full note detail (summary + chunks now available)
+        slidesApi.getById(id).then(data => setNote(data as NoteDetail)).catch(() => {});
+      } else {
+        setNote(prev => prev ? { ...prev, processingStatus: status } : prev);
+      }
+    });
+    return () => { socket.disconnect(); };
   }, [id]);
 
   const toggleChunk = (chunkId: string) => {

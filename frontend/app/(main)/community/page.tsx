@@ -158,7 +158,13 @@ export default function CommunityPage() {
       const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
       const created = (res as any)?.data?.data ?? (res as any)?.data;
       if (created?.id) {
-        setPods(prev => prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p));
+        setPods(prev => {
+          // Replace optimistic pod with real one, then deduplicate in case the
+          // socket already added the real pod before the API response arrived.
+          const replaced = prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p);
+          const seen = new Set<string>();
+          return replaced.filter(p => !seen.has(p.id) && !!seen.add(p.id));
+        });
       }
     } catch {
       // keep optimistic pod — user can still see their pod in the list
