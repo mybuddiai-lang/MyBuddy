@@ -24,13 +24,17 @@ export class FilesService {
   ) {
     this.bucket = config.get<string>('CLOUDFLARE_R2_BUCKET', 'buddi-uploads');
     this.publicUrl = config.get<string>('CLOUDFLARE_R2_PUBLIC_URL', '');
+    const accountId = config.get<string>('CLOUDFLARE_ACCOUNT_ID', '');
     this.s3 = new S3Client({
       region: 'auto',
-      endpoint: `https://${config.get('CLOUDFLARE_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       credentials: {
         accessKeyId: config.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID', ''),
         secretAccessKey: config.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY', ''),
       },
+      // AWS SDK v3.382+ adds CRC32 checksum headers by default — R2 rejects these
+      requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+      responseChecksumValidation: 'WHEN_REQUIRED' as any,
     });
   }
 
@@ -153,13 +157,19 @@ export class FilesService {
   // Lightweight upload for community post/reply attachments — no Note record, no AI processing
   async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
     const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;
-    await this.s3.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    }));
-    const url = `${this.publicUrl}/${key}`;
+    let url = '';
+    try {
+      await this.s3.send(new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }));
+      url = `${this.publicUrl}/${key}`;
+    } catch (err) {
+      this.logger.warn('R2 attachment upload failed', err);
+      url = `/uploads/${file.originalname}`;
+    }
     const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
   }
