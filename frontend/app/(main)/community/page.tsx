@@ -56,6 +56,7 @@ export default function CommunityPage() {
   const router = useRouter();
   const [pods, setPods] = useState<Pod[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [showCreate, setShowCreate] = useState(false);
   const [newPodName, setNewPodName] = useState('');
@@ -64,15 +65,19 @@ export default function CommunityPage() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchPods = () => {
+    setLoading(true);
+    setLoadError(false);
     communityApi.getAll()
       .then(res => {
         const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
         setPods(list.filter(p => p?.id).map(normalisePod));
       })
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchPods(); }, []);
 
   // Listen for communities created by other users in real-time
   useEffect(() => {
@@ -149,25 +154,30 @@ export default function CommunityPage() {
       myRole: 'ADMIN',
       color: SUBJECT_COLORS[newPodSubject] || 'bg-brand-100 text-brand-600',
     };
+    // Close the sheet and show the pod immediately (optimistic)
     setPods(prev => [optimisticPod, ...prev]);
     setShowCreate(false);
     setNewPodName('');
     setNewPodSubject('');
-    toast.success('Pod created! Share it with your classmates.');
     try {
       const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
       const created = (res as any)?.data?.data ?? (res as any)?.data;
       if (created?.id) {
-        setPods(prev => {
-          // Replace optimistic pod with real one, then deduplicate in case the
-          // socket already added the real pod before the API response arrived.
-          const replaced = prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p);
-          const seen = new Set<string>();
-          return replaced.filter(p => !seen.has(p.id) && !!seen.add(p.id));
-        });
+        // Replace the optimistic pod with the real one from the server.
+        // The backend no longer broadcasts community:new to the creator, so
+        // there is no socket-based race condition here — just a straight swap.
+        setPods(prev => prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p));
+        toast.success('Pod created! Share it with your classmates.');
+      } else {
+        // Unexpected response — roll back
+        setPods(prev => prev.filter(p => p.id !== tempId));
+        toast.error('Could not create pod — please try again.');
       }
     } catch {
-      // keep optimistic pod — user can still see their pod in the list
+      // Creation failed: remove the optimistic pod so the user knows it
+      // wasn't actually saved (instead of showing a ghost pod).
+      setPods(prev => prev.filter(p => p.id !== tempId));
+      toast.error('Could not create pod — check your connection and try again.');
     }
     setCreating(false);
   };
@@ -213,6 +223,14 @@ export default function CommunityPage() {
           </button>
         ))}
       </div>
+
+      {/* Load error */}
+      {loadError && !loading && (
+        <div className="text-center py-8">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Couldn't load pods — check your connection</p>
+          <button onClick={fetchPods} className="mt-3 text-sm text-brand-600 font-medium underline">Retry</button>
+        </div>
+      )}
 
       {/* Pod list */}
       <div className="space-y-3">

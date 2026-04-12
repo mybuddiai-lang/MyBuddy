@@ -47,7 +47,11 @@ export class CommunityService {
       data: { communityId: community.id, userId, role: 'ADMIN' },
     });
     const result = this.mapCommunity(community, 'ADMIN');
-    this.gateway?.broadcast('community:new', result);
+    // Broadcast to everyone EXCEPT the creator. The creator's UI is already
+    // handled by the API response (optimistic update). Sending to the creator
+    // would cause a duplicate. Other users receive myRole:null because they
+    // are not members — they should see it in "Discover", not "My Pods".
+    this.gateway?.broadcastExcept(`user:${userId}`, 'community:new', this.mapCommunity(community, null));
     return result;
   }
 

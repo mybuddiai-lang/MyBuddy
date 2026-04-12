@@ -95,6 +95,11 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     this.server.emit(event, data);
   }
 
+  // Broadcast to all connected users EXCEPT those in the given room (e.g. 'user:<userId>')
+  broadcastExcept(room: string, event: string, data: any) {
+    this.server.except(room).emit(event, data);
+  }
+
   // Send new AI message in real-time (streaming feel)
   sendChatMessage(userId: string, message: any) {
     this.notifyUser(userId, 'chat:message', message);

@@ -44,18 +44,16 @@ export function useSlides() {
   const { data: notes = DEMO_NOTES, isLoading } = useQuery<Note[]>({
     queryKey: ['slides'],
     queryFn: async () => {
-      try {
-        const real = await slidesApi.getAll();
-        // Always append demo notes so they're visible even on a fresh account
-        const realIds = new Set(real.map(n => n.id));
-        const demos = DEMO_NOTES.filter(d => !realIds.has(d.id));
-        return [...real, ...demos];
-      } catch {
-        return DEMO_NOTES;
-      }
+      const real = await slidesApi.getAll();
+      // Always append demo notes so they're visible even on a fresh account
+      const realIds = new Set(real.map(n => n.id));
+      const demos = DEMO_NOTES.filter(d => !realIds.has(d.id));
+      return [...real, ...demos];
     },
     staleTime: 3 * 60 * 1000,
     retry: 1,
+    // On failure, keep whatever data is already in the cache instead of wiping it
+    placeholderData: (prev) => prev,
   });
 
   const uploadMutation = useMutation({
@@ -114,12 +112,24 @@ export function useSlides() {
       reconnectionAttempts: 3,
     });
     socket.on('note:status', ({ noteId, status }: { noteId: string; status: string }) => {
+      // Always update the processing status immediately so the spinner stops
       queryClient.setQueryData(['slides'], (old: Note[] = []) =>
         old.map(n => n.id === noteId ? { ...n, processingStatus: status } : n)
       );
+
       if (status === 'DONE') {
-        // Refetch to get the summary and other fields that were populated during processing
-        queryClient.invalidateQueries({ queryKey: ['slides'] });
+        // Fetch only this note to get its summary — do NOT call invalidateQueries
+        // (a full refetch could wipe all uploaded notes if it fails via the proxy)
+        slidesApi.getById(noteId)
+          .then(updated => {
+            queryClient.setQueryData(['slides'], (old: Note[] = []) =>
+              old.map(n => n.id === noteId ? { ...n, ...updated } : n)
+            );
+          })
+          .catch(() => {
+            // getById failed — status is already updated above, summary will be
+            // shown next time the user visits the detail page
+          });
       }
     });
     return () => { socket.disconnect(); };
