@@ -75,24 +75,31 @@ export default function CommunityPage() {
     // pods, do a background refresh so the screen doesn't flash empty.
     if (_podsCache.length === 0) setLoading(true);
     setLoadError(false);
-    communityApi.getAll()
-      .then(res => {
-        // The global TransformInterceptor wraps every response in { data: ... }
-        // Axios adds its own .data layer, so the array lives at res.data.data.
-        // Handle both wrapped and unwrapped shapes defensively.
-        const raw: unknown = (res as any)?.data?.data ?? (res as any)?.data;
-        const list: any[] = Array.isArray(raw) ? raw : [];
-        const normalised = list.filter(p => p?.id).map(normalisePod);
-        _podsCache = normalised;       // persist across navigation
-        setPods(normalised);
-      })
-      .catch(() => {
-        // Only flag a load error when we have nothing to display.
-        // If we already have cached pods from a previous successful fetch,
-        // keep showing them and stay silent about the transient failure.
-        if (_podsCache.length === 0) setLoadError(true);
-      })
-      .finally(() => setLoading(false));
+    const attempt = (n: number) => {
+      communityApi.getAll()
+        .then(res => {
+          // The global TransformInterceptor wraps every response in { data: ... }
+          // Axios adds its own .data layer, so the array lives at res.data.data.
+          // Handle both wrapped and unwrapped shapes defensively.
+          const raw: unknown = (res as any)?.data?.data ?? (res as any)?.data;
+          const list: any[] = Array.isArray(raw) ? raw : [];
+          const normalised = list.filter(p => p?.id).map(normalisePod);
+          _podsCache = normalised;       // persist across navigation
+          setPods(normalised);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (n < 2) {
+            // Retry up to 3 times (n=0,1,2) before surfacing the error
+            setTimeout(() => attempt(n + 1), 1500);
+          } else {
+            // Only flag a load error when we have nothing to display.
+            if (_podsCache.length === 0) setLoadError(true);
+            setLoading(false);
+          }
+        });
+    };
+    attempt(0);
   };
 
   useEffect(() => { fetchPods(); }, []);

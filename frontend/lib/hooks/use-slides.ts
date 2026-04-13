@@ -8,58 +8,25 @@ import toast from 'react-hot-toast';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
-const DEMO_NOTES: Note[] = [
-  {
-    id: 'demo-1',
-    title: 'Pharmacology — CNS Drugs',
-    fileType: 'PDF',
-    processingStatus: 'DONE',
-    masteryLevel: 3,
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    summary: 'Dopamine pathways, antipsychotics, mood stabilizers and sedatives',
-  },
-  {
-    id: 'demo-2',
-    title: 'Anatomy Notes — Upper Limb',
-    fileType: 'IMAGE',
-    processingStatus: 'DONE',
-    masteryLevel: 2,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    summary: 'Upper limb musculature, brachial plexus and neurovascular supply',
-  },
-  {
-    id: 'demo-3',
-    title: 'Voice note — Cardiology',
-    fileType: 'VOICE',
-    processingStatus: 'DONE',
-    masteryLevel: 4,
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    summary: 'Heart sounds, murmurs, cardiac output and Frank-Starling mechanism',
-  },
-];
-
 export function useSlides() {
   const queryClient = useQueryClient();
 
-  const { data: notes = DEMO_NOTES, isLoading } = useQuery<Note[]>({
+  const { data: notes = [], isLoading } = useQuery<Note[]>({
     queryKey: ['slides'],
     queryFn: async () => {
       const real = await slidesApi.getAll();
-      // Always append demo notes so they're visible even on a fresh account
-      const realIds = new Set(real.map(n => n.id));
-      const demos = DEMO_NOTES.filter(d => !realIds.has(d.id));
-      return [...real, ...demos];
+      return real;
     },
     staleTime: 3 * 60 * 1000,
     retry: 1,
     // On failure, keep whatever data is already in the cache instead of wiping it
     placeholderData: (prev) => prev,
-    // Poll every 5 s while any real note is still processing — guarantees the UI
+    // Poll every 5 s while any note is still processing — guarantees the UI
     // catches up even if the socket event is missed (timing, reconnection, etc.)
     refetchInterval: (query) => {
       const data = query.state.data as Note[] | undefined;
       const hasProcessing = data?.some(
-        n => !n.id.startsWith('demo-') && !n.id.startsWith('optimistic-') &&
+        n => !n.id.startsWith('optimistic-') &&
           (n.processingStatus === 'PROCESSING' || n.processingStatus === 'PENDING'),
       );
       return hasProcessing ? 5000 : false;
@@ -87,7 +54,7 @@ export function useSlides() {
         return uploaded;
       } catch {
         queryClient.setQueryData(['slides'], (old: Note[] = []) =>
-          old.filter(n => n.id !== optimistic.id),
+          old.map(n => n.id === optimistic.id ? { ...n, processingStatus: 'FAILED' } : n),
         );
         toast.error('Upload failed. Check your connection and try again.');
         return optimistic;
@@ -100,8 +67,6 @@ export function useSlides() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Demo notes are local-only — no API call needed
-      if (id.startsWith('demo-')) return;
       return slidesApi.delete(id);
     },
     onMutate: (id) => {

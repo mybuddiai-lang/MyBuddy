@@ -48,116 +48,6 @@ export default function NoteDetailPage() {
 
   useEffect(() => {
     let mounted = true;
-    const DUMMY_DETAIL: Record<string, NoteDetail> = {
-      'demo-1': {
-        id: 'demo-1', title: 'Pharmacology — CNS Drugs', fileType: 'PDF', processingStatus: 'DONE',
-        masteryLevel: 3, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), pageCount: 12,
-        summary: JSON.stringify({
-          overview: 'Covers the major CNS drug classes including dopamine pathway modulators, antipsychotics, SSRIs, and mood stabilizers. Focuses on mechanisms of action and clinical applications.',
-          topics: ['Dopamine pathways', 'Antipsychotics', 'Mood stabilizers', 'SSRIs', 'Serotonin syndrome'],
-          takeaways: [
-            'Haloperidol blocks D2 receptors in the mesolimbic pathway — typical antipsychotic.',
-            'Lithium inhibits GSK-3 and inositol monophosphatase for mood stabilization.',
-            'Serotonin syndrome triad: mental status changes + autonomic instability + neuromuscular abnormalities.',
-          ],
-        }),
-        chunks: [
-          { id: 'c1', chunkIndex: 0, content: 'Q: What is the mechanism of haloperidol?\nA: Haloperidol is a typical antipsychotic that blocks D2 dopamine receptors in the mesolimbic pathway, reducing positive symptoms of schizophrenia.' },
-          { id: 'c2', chunkIndex: 1, content: 'Q: How does lithium work as a mood stabilizer?\nA: Lithium inhibits inositol monophosphatase and GSK-3, reducing second messenger signaling downstream of neurotransmitter receptors.' },
-          { id: 'c3', chunkIndex: 2, content: 'Q: What is serotonin syndrome?\nA: A potentially life-threatening condition caused by excess serotonergic activity. Triad: mental status changes, autonomic instability, and neuromuscular abnormalities.' },
-          { id: 't1', chunkIndex: 100, content: 'TERM: Mesolimbic pathway\nDEF: Dopaminergic pathway from the ventral tegmental area to the nucleus accumbens — primary target of antipsychotic drugs.' },
-          { id: 't2', chunkIndex: 101, content: 'TERM: Extrapyramidal side effects\nDEF: Movement-related adverse effects (dystonia, akathisia, parkinsonism, tardive dyskinesia) caused by D2 blockade in the nigrostriatal pathway.' },
-          { id: 't3', chunkIndex: 102, content: 'TERM: Clozapine\nDEF: Atypical antipsychotic with low EPS risk; blocks multiple receptors (D4, 5-HT2A). Risk of agranulocytosis requires regular blood monitoring.' },
-        ],
-      },
-      'demo-2': {
-        id: 'demo-2', title: 'Anatomy Notes — Upper Limb', fileType: 'IMAGE', processingStatus: 'DONE',
-        masteryLevel: 2, createdAt: new Date(Date.now() - 86400000).toISOString(),
-        summary: JSON.stringify({
-          overview: 'Covers the musculature and neurovascular supply of the upper limb with emphasis on the brachial plexus and clinical nerve injury correlations.',
-          topics: ['Brachial plexus', 'Nerve injuries', 'Upper limb muscles', 'Clinical correlations'],
-          takeaways: [
-            'Radial nerve injury → wrist drop; median nerve injury at wrist → ape hand; ulnar nerve → claw hand.',
-            'The brachial plexus is formed from roots C5–T1.',
-            'Thenar muscles are innervated by the recurrent branch of the median nerve.',
-          ],
-        }),
-        chunks: [
-          { id: 'c4', chunkIndex: 0, content: 'Q: What muscles are innervated by the radial nerve?\nA: The radial nerve innervates the triceps, brachioradialis, and all wrist/finger extensors. Injury causes wrist drop.' },
-          { id: 'c5', chunkIndex: 1, content: 'Q: What is the clinical sign of median nerve injury at the wrist?\nA: Loss of thumb opposition and thenar wasting (ape hand deformity). Loss of sensation in lateral 3½ fingers.' },
-          { id: 'c6', chunkIndex: 2, content: 'Q: What nerve is tested by pinching the first dorsal web space?\nA: The deep branch of the radial nerve (posterior interosseous nerve). Weakness in finger extension but not wrist extension.' },
-          { id: 't4', chunkIndex: 100, content: 'TERM: Saturday night palsy\nDEF: Radial nerve compression at the spiral groove causing wrist drop; typically from prolonged arm compression over a hard surface.' },
-          { id: 't5', chunkIndex: 101, content: 'TERM: Carpal tunnel syndrome\nDEF: Compression of the median nerve under the flexor retinaculum, causing pain and paresthesia in the lateral 3½ fingers.' },
-        ],
-      },
-      'demo-3': {
-        id: 'demo-3', title: 'Contract Law — Essentials', fileType: 'PDF', processingStatus: 'DONE',
-        masteryLevel: 4, createdAt: new Date(Date.now() - 3 * 86400000).toISOString(), pageCount: 8,
-        summary: JSON.stringify({
-          overview: 'Covers the foundational pillars of contract law: offer, acceptance, consideration, privity, and remedies for breach. Includes landmark cases and legal principles.',
-          topics: ['Offer & Acceptance', 'Consideration', 'Privity of contract', 'Breach & Remedies'],
-          takeaways: [
-            'All five elements must be present for a binding contract: offer, acceptance, consideration, intention, capacity.',
-            'The postal rule: acceptance is complete on posting (Adams v Lindsell 1818).',
-            'Carlill v Carbolic Smoke Ball established that advertisements can constitute unilateral offers.',
-          ],
-        }),
-        chunks: [
-          { id: 'c7', chunkIndex: 0, content: 'Q: What are the essential elements of a valid contract?\nA: Offer, acceptance, consideration, intention to create legal relations, and capacity. All must be present for enforceability.' },
-          { id: 'c8', chunkIndex: 1, content: 'Q: What is the rule in Carlill v Carbolic Smoke Ball Co?\nA: An advertisement can constitute a binding unilateral offer if it is sufficiently certain and the offeror shows intention to be bound, e.g., by depositing money.' },
-          { id: 'c9', chunkIndex: 2, content: 'Q: What is the postal rule?\nA: Acceptance of a contract is complete when the letter is posted, not when received — established in Adams v Lindsell (1818).' },
-          { id: 't6', chunkIndex: 100, content: 'TERM: Consideration\nDEF: Something of value exchanged between contracting parties. Must be sufficient but need not be adequate — a peppercorn suffices.' },
-          { id: 't7', chunkIndex: 101, content: 'TERM: Privity of contract\nDEF: Only parties to a contract can sue on it. Third parties generally cannot enforce contractual obligations (Tweddle v Atkinson).' },
-        ],
-      },
-      'demo-4': {
-        id: 'demo-4', title: 'Thermodynamics Lecture 3', fileType: 'PDF', processingStatus: 'DONE',
-        masteryLevel: 1, createdAt: new Date(Date.now() - 5 * 86400000).toISOString(), pageCount: 18,
-        summary: JSON.stringify({
-          overview: 'Introduces the four laws of thermodynamics with emphasis on entropy, heat engines, and the Carnot cycle. Fundamental for engineering and physics examinations.',
-          topics: ['Laws of thermodynamics', 'Entropy', 'Carnot cycle', 'Heat engines'],
-          takeaways: [
-            'Carnot efficiency η = 1 − (T_cold / T_hot) — the theoretical maximum for any heat engine.',
-            'Second law: entropy of an isolated system always increases (ΔS ≥ 0).',
-            'Zeroth law defines thermal equilibrium and underpins temperature measurement.',
-          ],
-        }),
-        chunks: [
-          { id: 'c10', chunkIndex: 0, content: 'Q: State the Second Law of Thermodynamics.\nA: Heat cannot spontaneously flow from a colder body to a hotter body. Entropy of an isolated system always increases over time.' },
-          { id: 'c11', chunkIndex: 1, content: 'Q: What is the Carnot efficiency formula?\nA: η = 1 − (T_cold / T_hot), where temperatures are in Kelvin. It represents the maximum possible efficiency of any heat engine.' },
-          { id: 'c12', chunkIndex: 2, content: 'Q: What is entropy?\nA: A measure of disorder or randomness in a system. In a reversible process dS = dQ/T; in irreversible processes entropy always increases.' },
-          { id: 't8', chunkIndex: 100, content: 'TERM: Carnot cycle\nDEF: Theoretical heat engine cycle consisting of two isothermal and two adiabatic processes, operating at the maximum thermodynamic efficiency.' },
-          { id: 't9', chunkIndex: 101, content: 'TERM: Enthalpy (H)\nDEF: H = U + PV; a state function representing total heat content of a system at constant pressure. ΔH = q_p.' },
-        ],
-      },
-      'demo-5': {
-        id: 'demo-5', title: 'Voice note — Cardiology', fileType: 'VOICE', processingStatus: 'DONE',
-        masteryLevel: 2, createdAt: new Date(Date.now() - 3600000).toISOString(),
-        summary: JSON.stringify({
-          overview: 'Reviews heart sounds, murmurs, and the Frank-Starling mechanism. High-yield material for clinical examinations covering normal and pathological cardiac physiology.',
-          topics: ['Heart sounds', 'Murmurs', 'Frank-Starling law', 'Cardiac output'],
-          takeaways: [
-            'S3 in adults = pathological (heart failure / volume overload); normal in children.',
-            'Frank-Starling: stroke volume increases with preload up to a physiological limit.',
-            'Mitral stenosis: rumbling mid-diastolic murmur at apex with opening snap.',
-          ],
-        }),
-        chunks: [
-          { id: 'c13', chunkIndex: 0, content: 'Q: What causes S3 heart sound?\nA: S3 (ventricular gallop) is caused by rapid ventricular filling in early diastole — normal in young people, pathological in adults (suggests heart failure or volume overload).' },
-          { id: 'c14', chunkIndex: 1, content: 'Q: What is the Frank-Starling law?\nA: As venous return (preload) increases, the heart stretches and contracts more forcefully up to a point — the heart pumps what it receives.' },
-          { id: 'c15', chunkIndex: 2, content: 'Q: What murmur is classic for mitral stenosis?\nA: A low-pitched, rumbling mid-diastolic murmur best heard at the apex with the patient in left lateral decubitus, often with an opening snap.' },
-          { id: 't10', chunkIndex: 100, content: 'TERM: Preload\nDEF: The degree of ventricular stretch at end-diastole, determined by venous return (end-diastolic volume). Increases stroke volume via Frank-Starling.' },
-          { id: 't11', chunkIndex: 101, content: 'TERM: Ejection fraction\nDEF: Fraction of end-diastolic volume ejected per beat (SV/EDV). Normal ≥55%. Reduced in systolic heart failure.' },
-        ],
-      },
-    };
-
-    // Skip API for demo notes — serve locally
-    if (id.startsWith('demo-')) {
-      setNote(DUMMY_DETAIL[id] ?? null);
-      setLoading(false);
-      return () => { mounted = false; };
-    }
 
     slidesApi.getById(id).then(data => {
       if (!mounted) return;
@@ -180,9 +70,8 @@ export default function NoteDetailPage() {
     return () => { mounted = false; };
   }, [id]);
 
-  // Real-time processing status for uploaded (non-demo) notes
+  // Real-time processing status updates
   useEffect(() => {
-    if (id.startsWith('demo-')) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
     if (!token) return;
     let alive = true;
