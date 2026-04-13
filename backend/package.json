@@ -13,9 +13,9 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test": "jest --forceExit",
+    "test:watch": "jest --watch --forceExit",
+    "test:cov": "jest --coverage --forceExit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -71,6 +71,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.8.1",
     "@types/nodemailer": "^6.4.17",
@@ -79,10 +80,13 @@
     "@types/pdf-parse": "^1.1.4",
     "@types/uuid": "^10.0.0",
     "@types/web-push": "^3.6.3",
+    "jest": "^30.3.0",
     "prettier": "^3.3.3",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.4"
   },
   "jest": {
     "moduleFileExtensions": [

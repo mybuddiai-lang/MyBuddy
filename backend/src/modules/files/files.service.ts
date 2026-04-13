@@ -230,7 +230,10 @@ export class FilesService {
       this.logger.warn('R2 attachment upload failed', err);
       url = `/uploads/${key}`;
     }
-    const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
+    // AttachmentType only has FILE | IMAGE | VOICE — 'TEXT' (from detectFileType's
+    // default) is not valid here. Map anything that isn't IMAGE or VOICE to FILE.
+    const detected = this.detectFileType(file.mimetype, file.originalname);
+    const type = (['IMAGE', 'VOICE'].includes(detected) ? detected : 'FILE') as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
   }
 
