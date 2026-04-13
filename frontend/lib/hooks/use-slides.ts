@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import { slidesApi, type Note } from '@/lib/api/slides';
@@ -10,19 +10,16 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 export function useSlides() {
   const queryClient = useQueryClient();
+  const [activeUploads, setActiveUploads] = useState(0);
 
   const { data: notes = [], isLoading } = useQuery<Note[]>({
     queryKey: ['slides'],
-    queryFn: async () => {
-      const real = await slidesApi.getAll();
-      return real;
-    },
+    queryFn: async () => slidesApi.getAll(),
     staleTime: 3 * 60 * 1000,
     retry: 1,
     // On failure, keep whatever data is already in the cache instead of wiping it
     placeholderData: (prev) => prev,
-    // Poll every 5 s while any note is still processing — guarantees the UI
-    // catches up even if the socket event is missed (timing, reconnection, etc.)
+    // Poll every 5 s while any note is still processing
     refetchInterval: (query) => {
       const data = query.state.data as Note[] | undefined;
       const hasProcessing = data?.some(
@@ -33,42 +30,41 @@ export function useSlides() {
     },
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      // Optimistic add
-      const optimistic: Note = {
-        id: `optimistic-${Date.now()}`,
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        fileType: file.name.endsWith('.pdf') ? 'PDF' : file.type.startsWith('audio') ? 'VOICE' : 'IMAGE',
-        processingStatus: 'PROCESSING',
-        masteryLevel: 0,
-        createdAt: new Date().toISOString(),
-      };
-      queryClient.setQueryData(['slides'], (old: Note[] = []) => [optimistic, ...old]);
-      try {
-        const uploaded = await slidesApi.upload(file);
-        queryClient.setQueryData(['slides'], (old: Note[] = []) =>
-          old.map(n => n.id === optimistic.id ? uploaded : n),
-        );
-        toast.success('Note uploaded — Buddi is processing it');
-        return uploaded;
-      } catch {
-        queryClient.setQueryData(['slides'], (old: Note[] = []) =>
-          old.map(n => n.id === optimistic.id ? { ...n, processingStatus: 'FAILED' } : n),
-        );
-        toast.error('Upload failed. Check your connection and try again.');
-        return optimistic;
-      }
-    },
-    onSuccess: () => {
+  // Each call is independent — multiple files can upload concurrently
+  const upload = useCallback(async (file: File): Promise<Note> => {
+    const optimistic: Note = {
+      id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      title: file.name.replace(/\.[^/.]+$/, ''),
+      fileType: file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : file.type.startsWith('audio/') ? 'VOICE' : 'IMAGE',
+      processingStatus: 'PROCESSING',
+      masteryLevel: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    setActiveUploads(c => c + 1);
+    queryClient.setQueryData(['slides'], (old: Note[] = []) => [optimistic, ...old]);
+
+    try {
+      const uploaded = await slidesApi.upload(file);
+      queryClient.setQueryData(['slides'], (old: Note[] = []) =>
+        old.map(n => n.id === optimistic.id ? uploaded : n),
+      );
+      toast.success(`"${optimistic.title}" uploaded — processing`);
       queryClient.invalidateQueries({ queryKey: ['stats'] });
-    },
-  });
+      return uploaded;
+    } catch {
+      queryClient.setQueryData(['slides'], (old: Note[] = []) =>
+        old.map(n => n.id === optimistic.id ? { ...n, processingStatus: 'FAILED' } : n),
+      );
+      toast.error(`Failed to upload "${file.name}"`);
+      return { ...optimistic, processingStatus: 'FAILED' };
+    } finally {
+      setActiveUploads(c => Math.max(0, c - 1));
+    }
+  }, [queryClient]);
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return slidesApi.delete(id);
-    },
+    mutationFn: async (id: string) => slidesApi.delete(id),
     onMutate: (id) => {
       queryClient.setQueryData(['slides'], (old: Note[] = []) => old.filter(n => n.id !== id));
     },
@@ -95,8 +91,7 @@ export function useSlides() {
       );
 
       if (status === 'DONE') {
-        // Fetch only this note to get its summary — do NOT call invalidateQueries
-        // (a full refetch could wipe all uploaded notes if it fails via the proxy)
+        // Fetch only this note to get its summary
         slidesApi.getById(noteId)
           .then(updated => {
             if (!alive) return;
@@ -105,8 +100,7 @@ export function useSlides() {
             );
           })
           .catch(() => {
-            // getById failed — status is already updated above, the refetchInterval
-            // will retry automatically within 5 seconds
+            // Status is already updated — refetchInterval will retry automatically
           });
       }
     });
@@ -116,8 +110,8 @@ export function useSlides() {
   return {
     notes,
     isLoading,
-    upload: uploadMutation.mutateAsync,
-    isUploading: uploadMutation.isPending,
+    upload,
+    activeUploads,
     remove: deleteMutation.mutate,
   };
 }

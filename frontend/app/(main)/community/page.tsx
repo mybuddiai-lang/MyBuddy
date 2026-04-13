@@ -67,6 +67,8 @@ export default function CommunityPage() {
   const [newPodName, setNewPodName] = useState('');
   const [newPodSubject, setNewPodSubject] = useState('');
   const [search, setSearch] = useState('');
+  const [newPodDesc, setNewPodDesc] = useState('');
+  const [newPodPrivate, setNewPodPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState<string | null>(null);
 
@@ -177,31 +179,32 @@ export default function CommunityPage() {
   const handleCreate = async () => {
     if (!newPodName.trim()) return toast.error('Give your pod a name');
     setCreating(true);
+    const field = newPodSubject || 'General';
+    const description = newPodDesc.trim() || `A study pod for ${field} students`;
     const tempId = `pod-${Date.now()}`;
     const optimisticPod: Pod = {
       id: tempId,
       name: newPodName,
-      description: `A study pod for ${newPodSubject || 'students'}`,
+      description,
       memberCount: 1,
-      isPublic: true,
-      field: newPodSubject || 'General',
+      isPublic: !newPodPrivate,
+      field,
       lastActivity: 'Just now',
       isMember: true,
       myRole: 'ADMIN',
-      color: SUBJECT_COLORS[newPodSubject] || 'bg-brand-100 text-brand-600',
+      color: SUBJECT_COLORS[field] || 'bg-brand-100 text-brand-600',
     };
     // Close the sheet and show the pod immediately (optimistic)
     setPods(prev => { const next = [optimisticPod, ...prev]; _podsCache = next; return next; });
     setShowCreate(false);
     setNewPodName('');
     setNewPodSubject('');
+    setNewPodDesc('');
+    setNewPodPrivate(false);
     try {
-      const res = await communityApi.create({ name: optimisticPod.name, description: optimisticPod.description, field: optimisticPod.field || 'General' });
+      const res = await communityApi.create({ name: optimisticPod.name, description, field, isPrivate: newPodPrivate });
       const created = (res as any)?.data?.data ?? (res as any)?.data;
       if (created?.id) {
-        // Replace the optimistic pod with the real one from the server.
-        // The backend no longer broadcasts community:new to the creator, so
-        // there is no socket-based race condition here — just a straight swap.
         setPods(prev => {
           const next = prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p);
           _podsCache = next;
@@ -209,13 +212,10 @@ export default function CommunityPage() {
         });
         toast.success('Pod created! Share it with your classmates.');
       } else {
-        // Unexpected response — roll back
         setPods(prev => { const next = prev.filter(p => p.id !== tempId); _podsCache = next; return next; });
         toast.error('Could not create pod — please try again.');
       }
     } catch {
-      // Creation failed: remove the optimistic pod so the user knows it
-      // wasn't actually saved (instead of showing a ghost pod).
       setPods(prev => { const next = prev.filter(p => p.id !== tempId); _podsCache = next; return next; });
       toast.error('Could not create pod — check your connection and try again.');
     }
@@ -373,31 +373,76 @@ export default function CommunityPage() {
             className="w-full bg-white dark:bg-zinc-900 rounded-t-3xl p-6 space-y-4 border-t border-zinc-100 dark:border-zinc-800"
             onClick={e => e.stopPropagation()}
           >
-            <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto" />
+            <div className="w-10 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full mx-auto" />
             <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Create Study Pod</h2>
+
+            {/* Pod name */}
             <input
               type="text"
               value={newPodName}
               onChange={e => setNewPodName(e.target.value)}
               placeholder="Pod name (e.g. MBBS Finals 2026)"
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+              autoFocus
             />
+
+            {/* Subject selector */}
+            <div>
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">Field / Subject</p>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.keys(SUBJECT_COLORS).map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setNewPodSubject(s === newPodSubject ? '' : s)}
+                    className={`py-2 rounded-xl text-xs font-semibold transition border ${
+                      newPodSubject === s
+                        ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                        : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-brand-300 dark:hover:border-brand-700'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Optional description */}
             <input
               type="text"
-              value={newPodSubject}
-              onChange={e => setNewPodSubject(e.target.value)}
-              placeholder="Subject / field (e.g. Medicine, Law)"
+              value={newPodDesc}
+              onChange={e => setNewPodDesc(e.target.value)}
+              placeholder="Short description (optional)"
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
             />
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">Your pod will be public by default. Anyone can join.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition">Cancel</button>
+
+            {/* Visibility toggle */}
+            <label className="flex items-center justify-between cursor-pointer py-1">
+              <div>
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Private pod</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">Require approval to join</p>
+              </div>
+              <div
+                onClick={() => setNewPodPrivate(v => !v)}
+                className={`w-11 h-6 rounded-full transition relative ${newPodPrivate ? 'bg-brand-500' : 'bg-zinc-200 dark:bg-zinc-700'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${newPodPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+            </label>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => { setShowCreate(false); setNewPodName(''); setNewPodSubject(''); setNewPodDesc(''); setNewPodPrivate(false); }}
+                className="flex-1 py-3 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleCreate}
-                disabled={creating}
-                className="flex-1 py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 disabled:opacity-60 transition shadow-soft"
+                disabled={creating || !newPodName.trim()}
+                className="flex-1 py-3 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition shadow-soft"
               >
-                {creating ? 'Creating...' : 'Create Pod'}
+                {creating ? 'Creating…' : 'Create Pod'}
               </button>
             </div>
           </motion.div>

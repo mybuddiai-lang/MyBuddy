@@ -521,27 +521,16 @@ function MemberSheet({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const MOCK_META = {
-  '1': { name: 'MBBS Finals 2026', description: 'Study group for final year medical students', field: 'Medicine', memberCount: 48, requiresApproval: false, myRole: null },
-  '2': { name: 'Anatomy Nerds', description: 'Anatomy deep dives, diagrams, and mnemonics', field: 'Anatomy', memberCount: 23, requiresApproval: false, myRole: null },
-};
-
-const PINNED_POST = {
-  id: 'pinned',
-  content: '📌 Welcome! Keep discussions relevant and supportive. Share resources, ask questions, encourage each other. No spam.',
-  isPinned: true,
-};
-
 export default function PodDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
 
-  const [pod, setPod] = useState<PodMeta>(
-    (MOCK_META as any)[id] || { name: 'Study Pod', description: '', field: 'General', memberCount: 0, requiresApproval: false, myRole: null }
-  );
+  const [pod, setPod] = useState<PodMeta | null>(null);
+  const [podLoading, setPodLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'polls'>('posts');
   const [posts, setPosts] = useState<(CommunityPost & { liked: boolean; isPinned?: boolean })[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [polls, setPolls] = useState<CommunityPoll[]>([]);
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
@@ -558,8 +547,8 @@ export default function PodDetailPage() {
   const postFileRef = useRef<HTMLInputElement>(null);
 
   const isPlatformAdmin = user?.role === 'ADMIN';
-  const isAdmin = pod.myRole === 'ADMIN' || isPlatformAdmin;
-  const canDeleteAny = isPlatformAdmin || pod.myRole === 'ADMIN' || pod.myRole === 'MODERATOR';
+  const isAdmin = pod?.myRole === 'ADMIN' || isPlatformAdmin;
+  const canDeleteAny = isPlatformAdmin || pod?.myRole === 'ADMIN' || pod?.myRole === 'MODERATOR';
 
   // Real-time socket connection
   useCommunitySocket(id, {
@@ -599,15 +588,19 @@ export default function PodDetailPage() {
 
   // Load data
   useEffect(() => {
+    setPostsLoading(true);
+    setPodLoading(true);
+
     // Posts
     communityApi.getPosts(id)
       .then((res: any) => {
         const apiPosts: CommunityPost[] = res?.data?.data ?? [];
         setPosts(apiPosts.map(p => ({ ...p, liked: false })));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPostsLoading(false));
 
-    // Pod meta — getOne now returns myRole for the requesting user
+    // Pod meta — getOne returns myRole for the requesting user
     communityApi.getOne(id)
       .then((res: any) => {
         const found = res?.data?.data ?? res?.data;
@@ -622,7 +615,8 @@ export default function PodDetailPage() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPodLoading(false));
 
     // Polls
     setPollLoadError(false);
@@ -635,10 +629,10 @@ export default function PodDetailPage() {
   useEffect(() => {
     if (!isAdmin) return;
     communityApi.getMembers(id).then((res: any) => setMembers(res?.data?.data ?? [])).catch(() => {});
-    if (pod.requiresApproval) {
+    if (pod?.requiresApproval) {
       communityApi.getJoinRequests(id).then((res: any) => setJoinRequests(res?.data?.data ?? [])).catch(() => {});
     }
-  }, [id, isAdmin, pod.requiresApproval]);
+  }, [id, isAdmin, pod?.requiresApproval]);
 
   const handleLike = async (postId: string) => {
     const post = posts.find(p => p.id === postId);
@@ -771,7 +765,7 @@ export default function PodDetailPage() {
     try {
       await communityApi.removeMember(id, userId);
       setMembers(prev => prev.filter(m => m.userId !== userId));
-      setPod(prev => ({ ...prev, memberCount: prev.memberCount - 1 }));
+      setPod(prev => prev ? { ...prev, memberCount: prev.memberCount - 1 } : prev);
     } catch { /* silent */ }
   };
 
@@ -779,7 +773,7 @@ export default function PodDetailPage() {
     try {
       await communityApi.approveJoinRequest(id, requestId);
       setJoinRequests(prev => prev.filter(r => r.id !== requestId));
-      setPod(prev => ({ ...prev, memberCount: prev.memberCount + 1 }));
+      setPod(prev => prev ? { ...prev, memberCount: prev.memberCount + 1 } : prev);
     } catch { /* silent */ }
   };
 
@@ -822,11 +816,20 @@ export default function PodDetailPage() {
           <Hash size={16} className="text-brand-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-zinc-900 truncate">{pod.name}</p>
-          <p className="text-xs text-zinc-400 flex items-center gap-1">
-            <Users size={9} /> {pod.memberCount} members · {pod.field}
-            {pod.myRole && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600 text-[9px] font-semibold">{pod.myRole}</span>}
-          </p>
+          {podLoading && !pod ? (
+            <div className="space-y-1.5 animate-pulse">
+              <div className="h-3.5 bg-zinc-100 rounded-full w-32" />
+              <div className="h-2.5 bg-zinc-100 rounded-full w-24" />
+            </div>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-zinc-900 truncate">{pod?.name ?? 'Pod'}</p>
+              <p className="text-xs text-zinc-400 flex items-center gap-1">
+                <Users size={9} /> {pod?.memberCount ?? 0} members · {pod?.field ?? 'General'}
+                {pod?.myRole && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600 text-[9px] font-semibold">{pod.myRole}</span>}
+              </p>
+            </>
+          )}
         </div>
 
         {/* More menu */}
@@ -882,18 +885,32 @@ export default function PodDetailPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {activeTab === 'posts' && (
           <>
-            {/* Pinned post */}
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-brand-50 border border-brand-100 rounded-2xl p-4"
-            >
-              <div className="flex items-center gap-1.5 mb-2">
-                <Pin size={12} className="text-brand-500" />
-                <span className="text-xs font-medium text-brand-600">Pinned</span>
+            {/* Posts loading skeleton */}
+            {postsLoading && posts.length === 0 && (
+              <div className="space-y-3 animate-pulse">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-white rounded-2xl p-4 border border-zinc-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-full bg-zinc-100 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 bg-zinc-100 rounded-full w-1/3" />
+                        <div className="h-2.5 bg-zinc-100 rounded-full w-full" />
+                        <div className="h-2.5 bg-zinc-100 rounded-full w-4/5" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <p className="text-sm text-zinc-700 leading-relaxed">{PINNED_POST.content}</p>
-            </motion.div>
+            )}
+
+            {/* Empty state */}
+            {!postsLoading && posts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+                <MessageSquare size={32} className="mb-3 opacity-40" />
+                <p className="text-sm font-medium text-zinc-500">No posts yet</p>
+                <p className="text-xs mt-1">Be the first to share something</p>
+              </div>
+            )}
 
             <AnimatePresence initial={false}>
               {posts.map((post, i) => (
@@ -1041,7 +1058,7 @@ export default function PodDetailPage() {
               value={newPost}
               onChange={e => setNewPost(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
-              placeholder={`Share something with ${pod.name}…`}
+              placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
               rows={1}
               onInput={e => {
                 const t = e.target as HTMLTextAreaElement;
@@ -1096,7 +1113,7 @@ export default function PodDetailPage() {
           members={members}
           joinRequests={joinRequests}
           myId={user?.id || ''}
-          requiresApproval={pod.requiresApproval}
+          requiresApproval={pod?.requiresApproval ?? false}
           onClose={() => setShowMemberSheet(false)}
           onRoleChange={handleRoleChange}
           onRemove={handleRemoveMember}
