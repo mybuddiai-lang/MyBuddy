@@ -18,8 +18,14 @@ export class CommunityService {
   }
 
   async findAll(userId: string) {
+    // Return all public communities PLUS any private communities the user belongs to
     const communities = await this.prisma.community.findMany({
-      where: { isPublic: true },
+      where: {
+        OR: [
+          { isPublic: true },
+          { members: { some: { userId } } },
+        ],
+      },
       orderBy: { memberCount: 'desc' },
       take: 50,
     });
@@ -41,7 +47,8 @@ export class CommunityService {
 
   async create(userId: string, data: { name: string; description?: string; isPublic?: boolean; requiresApproval?: boolean; schoolFilter?: string; subjectFilter?: string }) {
     const community = await this.prisma.community.create({
-      data: { ...data, createdBy: userId, isPublic: data.isPublic ?? true },
+      // memberCount starts at 1 — the creator is immediately added as ADMIN below
+      data: { ...data, createdBy: userId, isPublic: data.isPublic ?? true, memberCount: 1 },
     });
     await this.prisma.communityMember.create({
       data: { communityId: community.id, userId, role: 'ADMIN' },
@@ -55,13 +62,23 @@ export class CommunityService {
     return result;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const community = await this.prisma.community.findUnique({
       where: { id },
       include: { members: { include: { user: { select: { id: true, name: true } } }, take: 10 } },
     });
     if (!community) throw new NotFoundException('Community not found');
-    return this.mapCommunity(community);
+
+    let myRole: string | null = null;
+    if (userId) {
+      const membership = await this.prisma.communityMember.findUnique({
+        where: { communityId_userId: { communityId: id, userId } },
+        select: { role: true },
+      });
+      myRole = membership?.role ?? null;
+    }
+
+    return this.mapCommunity(community, myRole);
   }
 
   async join(communityId: string, userId: string) {
@@ -202,6 +219,15 @@ export class CommunityService {
   }
 
   async createPost(communityId: string, userId: string, content: string, attachmentUrl?: string, attachmentType?: string) {
+    // Verify community exists and the user is a member
+    const community = await this.prisma.community.findUnique({ where: { id: communityId } });
+    if (!community) throw new NotFoundException('Community not found');
+
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId, userId } },
+    });
+    if (!membership) throw new ForbiddenException('You must be a member to post in this community');
+
     const post = await this.prisma.communityPost.create({
       data: { communityId, authorId: userId, content, attachmentUrl, attachmentType: attachmentType as any },
       include: { author: { select: { id: true, name: true } } },
@@ -269,6 +295,16 @@ export class CommunityService {
   }
 
   async createReply(postId: string, authorId: string, content: string, attachmentUrl?: string, attachmentType?: string) {
+    // Verify post exists first so we have the communityId for membership check
+    const post = await this.prisma.communityPost.findUnique({ where: { id: postId }, select: { communityId: true } });
+    if (!post) throw new NotFoundException('Post not found');
+
+    // Verify the user is a member of the community this post belongs to
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId: post.communityId, userId: authorId } },
+    });
+    if (!membership) throw new ForbiddenException('You must be a member to reply in this community');
+
     const [reply] = await this.prisma.$transaction([
       this.prisma.communityPostReply.create({
         data: { postId, authorId, content, attachmentUrl, attachmentType: attachmentType as any },
@@ -277,10 +313,7 @@ export class CommunityService {
       this.prisma.communityPost.update({ where: { id: postId }, data: { repliesCount: { increment: 1 } } }),
     ]);
 
-    // Get communityId to broadcast
-    const post = await this.prisma.communityPost.findUnique({ where: { id: postId }, select: { communityId: true } });
-    if (post) this.gateway?.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
-
+    this.gateway?.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
     return reply;
   }
 
@@ -425,6 +458,12 @@ export class CommunityService {
       include: { options: { include: { votes: { where: { userId } } } } },
     });
     if (!poll) throw new NotFoundException('Poll not found');
+
+    // Verify the user is a member of the community this poll belongs to
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId: poll.communityId, userId } },
+    });
+    if (!membership) throw new ForbiddenException('You must be a member to vote in this community');
 
     const alreadyVoted = poll.options.some(o => o.votes.length > 0);
     if (alreadyVoted) throw new ConflictException('Already voted in this poll');

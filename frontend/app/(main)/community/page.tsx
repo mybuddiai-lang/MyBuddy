@@ -47,15 +47,20 @@ function normalisePod(p: any): Pod {
   return {
     ...p,
     field,
-    isMember: !!p.myRole,
+    isMember: !!(p.myRole),
     color: getColor({ ...p, field }),
   };
 }
 
+// Module-level cache — survives navigation (component unmount/remount)
+// but resets on full page refresh, which is the desired behaviour.
+let _podsCache: Pod[] = [];
+
 export default function CommunityPage() {
   const router = useRouter();
-  const [pods, setPods] = useState<Pod[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialise from cache so pods don't vanish when the user navigates back
+  const [pods, setPods] = useState<Pod[]>(_podsCache);
+  const [loading, setLoading] = useState(_podsCache.length === 0);
   const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'discover'>('my');
   const [showCreate, setShowCreate] = useState(false);
@@ -66,14 +71,27 @@ export default function CommunityPage() {
   const [joining, setJoining] = useState<string | null>(null);
 
   const fetchPods = () => {
-    setLoading(true);
+    // Only show skeletons on the very first load — when we already have cached
+    // pods, do a background refresh so the screen doesn't flash empty.
+    if (_podsCache.length === 0) setLoading(true);
     setLoadError(false);
     communityApi.getAll()
       .then(res => {
-        const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
-        setPods(list.filter(p => p?.id).map(normalisePod));
+        // The global TransformInterceptor wraps every response in { data: ... }
+        // Axios adds its own .data layer, so the array lives at res.data.data.
+        // Handle both wrapped and unwrapped shapes defensively.
+        const raw: unknown = (res as any)?.data?.data ?? (res as any)?.data;
+        const list: any[] = Array.isArray(raw) ? raw : [];
+        const normalised = list.filter(p => p?.id).map(normalisePod);
+        _podsCache = normalised;       // persist across navigation
+        setPods(normalised);
       })
-      .catch(() => setLoadError(true))
+      .catch(() => {
+        // Only flag a load error when we have nothing to display.
+        // If we already have cached pods from a previous successful fetch,
+        // keep showing them and stay silent about the transient failure.
+        if (_podsCache.length === 0) setLoadError(true);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -86,13 +104,16 @@ export default function CommunityPage() {
     const socket = io(`${WS_URL}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 3,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
     socket.on('community:new', (newPod: any) => {
       if (!newPod?.id) return;
       setPods(prev => {
         if (prev.some(p => p.id === newPod.id)) return prev;
-        return [normalisePod(newPod), ...prev];
+        const next = [normalisePod(newPod), ...prev];
+        _podsCache = next;
+        return next;
       });
     });
     return () => { socket.disconnect(); };
@@ -119,16 +140,24 @@ export default function CommunityPage() {
       if (data?.pending) {
         toast.success('Join request sent! Waiting for admin approval.');
       } else {
-        setPods(prev => prev.map(p =>
-          p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER', memberCount: (p.memberCount || 0) + 1 } : p
-        ));
+        setPods(prev => {
+          const next = prev.map(p =>
+            p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER', memberCount: (p.memberCount || 0) + 1 } : p
+          );
+          _podsCache = next;
+          return next;
+        });
         toast.success('Joined! Tap "Open Pod" to get started.');
       }
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 409) {
         // Already a member — sync state
-        setPods(prev => prev.map(p => p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER' } : p));
+        setPods(prev => {
+          const next = prev.map(p => p.id === podId ? { ...p, isMember: true, myRole: 'MEMBER' } : p);
+          _podsCache = next;
+          return next;
+        });
         toast.success('You\'re already in this pod!');
       } else {
         toast.error('Could not join — please try again');
@@ -155,7 +184,7 @@ export default function CommunityPage() {
       color: SUBJECT_COLORS[newPodSubject] || 'bg-brand-100 text-brand-600',
     };
     // Close the sheet and show the pod immediately (optimistic)
-    setPods(prev => [optimisticPod, ...prev]);
+    setPods(prev => { const next = [optimisticPod, ...prev]; _podsCache = next; return next; });
     setShowCreate(false);
     setNewPodName('');
     setNewPodSubject('');
@@ -166,17 +195,21 @@ export default function CommunityPage() {
         // Replace the optimistic pod with the real one from the server.
         // The backend no longer broadcasts community:new to the creator, so
         // there is no socket-based race condition here — just a straight swap.
-        setPods(prev => prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p));
+        setPods(prev => {
+          const next = prev.map(p => p.id === tempId ? normalisePod({ ...created, myRole: 'ADMIN' }) : p);
+          _podsCache = next;
+          return next;
+        });
         toast.success('Pod created! Share it with your classmates.');
       } else {
         // Unexpected response — roll back
-        setPods(prev => prev.filter(p => p.id !== tempId));
+        setPods(prev => { const next = prev.filter(p => p.id !== tempId); _podsCache = next; return next; });
         toast.error('Could not create pod — please try again.');
       }
     } catch {
       // Creation failed: remove the optimistic pod so the user knows it
       // wasn't actually saved (instead of showing a ghost pod).
-      setPods(prev => prev.filter(p => p.id !== tempId));
+      setPods(prev => { const next = prev.filter(p => p.id !== tempId); _podsCache = next; return next; });
       toast.error('Could not create pod — check your connection and try again.');
     }
     setCreating(false);
@@ -224,8 +257,8 @@ export default function CommunityPage() {
         ))}
       </div>
 
-      {/* Load error */}
-      {loadError && !loading && (
+      {/* Load error — only surface when we have nothing to show */}
+      {loadError && !loading && pods.length === 0 && (
         <div className="text-center py-8">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Couldn't load pods — check your connection</p>
           <button onClick={fetchPods} className="mt-3 text-sm text-brand-600 font-medium underline">Retry</button>
@@ -234,7 +267,8 @@ export default function CommunityPage() {
 
       {/* Pod list */}
       <div className="space-y-3">
-        {loading && (
+        {/* Only show skeleton when loading AND we have no pods to display yet */}
+        {loading && pods.length === 0 && (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 animate-pulse">
@@ -249,7 +283,7 @@ export default function CommunityPage() {
             ))}
           </div>
         )}
-        {!loading && displayList.map((pod, i) => {
+        {displayList.map((pod, i) => {
           const isPrivate = pod.isPrivate ?? !pod.isPublic;
           const podColor = pod.color || getColor(pod);
           const isJoining = joining === pod.id;
@@ -314,7 +348,7 @@ export default function CommunityPage() {
           );
         })}
 
-        {!loading && displayList.length === 0 && (
+        {!loading && !loadError && displayList.length === 0 && (
           <div className="text-center py-12">
             <p className="text-4xl mb-3">👥</p>
             <p className="text-zinc-600 dark:text-zinc-400 font-medium">{activeTab === 'my' ? 'No pods yet' : 'No matching pods'}</p>

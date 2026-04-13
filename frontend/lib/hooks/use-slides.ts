@@ -54,6 +54,16 @@ export function useSlides() {
     retry: 1,
     // On failure, keep whatever data is already in the cache instead of wiping it
     placeholderData: (prev) => prev,
+    // Poll every 5 s while any real note is still processing — guarantees the UI
+    // catches up even if the socket event is missed (timing, reconnection, etc.)
+    refetchInterval: (query) => {
+      const data = query.state.data as Note[] | undefined;
+      const hasProcessing = data?.some(
+        n => !n.id.startsWith('demo-') && !n.id.startsWith('optimistic-') &&
+          (n.processingStatus === 'PROCESSING' || n.processingStatus === 'PENDING'),
+      );
+      return hasProcessing ? 5000 : false;
+    },
   });
 
   const uploadMutation = useMutation({
@@ -106,10 +116,12 @@ export function useSlides() {
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
     if (!token) return;
+    let alive = true;
     const socket = io(`${WS_URL}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 3,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
     socket.on('note:status', ({ noteId, status }: { noteId: string; status: string }) => {
       // Always update the processing status immediately so the spinner stops
@@ -122,17 +134,18 @@ export function useSlides() {
         // (a full refetch could wipe all uploaded notes if it fails via the proxy)
         slidesApi.getById(noteId)
           .then(updated => {
+            if (!alive) return;
             queryClient.setQueryData(['slides'], (old: Note[] = []) =>
               old.map(n => n.id === noteId ? { ...n, ...updated } : n)
             );
           })
           .catch(() => {
-            // getById failed — status is already updated above, summary will be
-            // shown next time the user visits the detail page
+            // getById failed — status is already updated above, the refetchInterval
+            // will retry automatically within 5 seconds
           });
       }
     });
-    return () => { socket.disconnect(); };
+    return () => { alive = false; socket.disconnect(); };
   }, [queryClient]);
 
   return {

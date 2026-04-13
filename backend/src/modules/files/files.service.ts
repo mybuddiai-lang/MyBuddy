@@ -53,8 +53,9 @@ export class FilesService {
       }));
       fileUrl = `${this.publicUrl}/${key}`;
     } catch (err) {
-      this.logger.warn('R2 upload failed, storing locally', err);
-      fileUrl = `/uploads/${file.originalname}`;
+      this.logger.warn('R2 upload failed, using local path', err);
+      // Use the same unique key to avoid filename collisions across users
+      fileUrl = `/uploads/${key}`;
     }
 
     const note = await this.prisma.note.create({
@@ -88,6 +89,8 @@ export class FilesService {
     try {
       // Extract text content
       let content = '';
+      let pageCount: number | undefined;
+
       if (mimetype === 'text/plain') {
         content = buffer.toString('utf-8');
       } else if (mimetype === 'application/pdf') {
@@ -96,36 +99,88 @@ export class FilesService {
           const pdfParse = require('pdf-parse');
           const parsed = await pdfParse(buffer);
           content = parsed.text || '';
-          this.logger.log(`PDF parsed: ${content.length} chars extracted from note ${noteId}`);
+          pageCount = parsed.numpages;
+          this.logger.log(`PDF parsed: ${content.length} chars, ${pageCount} pages from note ${noteId}`);
         } catch (pdfErr) {
           this.logger.warn(`PDF parse failed for note ${noteId}, using fallback`, pdfErr);
           content = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\t]/g, ' ').trim();
         }
       } else {
-        // For images: pass a placeholder — real OCR would use AWS Textract / Google Vision
+        // For images/voice: placeholder — real OCR would use AWS Textract / Google Vision
         content = `[Image upload: ${noteId}. OCR processing not yet configured.]`;
       }
 
-      // Generate AI summary and facts
-      const summary = await this.aiService.summarizeContent(content);
-      const facts = await this.aiService.extractHighYieldFacts(content);
+      // Guard: if nothing was extractable, mark DONE with an informative summary so the
+      // user knows the file was received but no text could be read (scanned PDF, etc.)
+      if (!content.trim() || content.trim().length < 20) {
+        await this.prisma.note.update({
+          where: { id: noteId },
+          data: {
+            processingStatus: 'DONE',
+            summary: JSON.stringify({
+              overview: 'No text could be extracted from this file. If it is a scanned document, OCR is not yet configured.',
+              topics: [],
+              takeaways: [],
+            }),
+            content,
+            ...(pageCount !== undefined ? { pageCount } : {}),
+          },
+        });
+        const baseNote = await this.prisma.note.findUnique({ where: { id: noteId }, select: { userId: true } });
+        if (baseNote) this.eventEmitter.emit('note.processed', { noteId, userId: baseNote.userId });
+        return;
+      }
 
-      // Create note chunks and reminders
-      const chunks = [];
-      for (let i = 0; i < Math.min(facts.length, 10); i++) {
+      // Run all AI extraction in parallel with individual fallbacks.
+      // Promise.allSettled ensures a single AI timeout/error doesn't kill the whole note.
+      const [summaryResult, factsResult, termsResult] = await Promise.allSettled([
+        this.aiService.summarizeContent(content),
+        this.aiService.extractHighYieldFacts(content),
+        this.aiService.extractKeyTerms(content),
+      ]);
+
+      const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : JSON.stringify({
+        overview: 'Summary could not be generated. Please try re-uploading the file.',
+        topics: [],
+        takeaways: [],
+      });
+      const facts = factsResult.status === 'fulfilled' ? factsResult.value : [];
+      const terms = termsResult.status === 'fulfilled' ? termsResult.value : [];
+
+      if (summaryResult.status === 'rejected') this.logger.warn(`summarizeContent failed for note ${noteId}`, summaryResult.reason);
+      if (factsResult.status === 'rejected') this.logger.warn(`extractHighYieldFacts failed for note ${noteId}`, factsResult.reason);
+      if (termsResult.status === 'rejected') this.logger.warn(`extractKeyTerms failed for note ${noteId}`, termsResult.reason);
+
+      // Store Q&A flashcard chunks (chunkIndex 0–14)
+      for (let i = 0; i < Math.min(facts.length, 15); i++) {
         const fact = facts[i];
-        const chunk = await this.prisma.noteChunk.create({
+        await this.prisma.noteChunk.create({
           data: {
             noteId,
             content: `Q: ${fact.question}\nA: ${fact.answer}`,
             chunkIndex: i,
           },
         });
-        chunks.push(chunk);
+      }
+
+      // Store key term / glossary chunks (chunkIndex 100–107, offset to distinguish type)
+      for (let i = 0; i < Math.min(terms.length, 8); i++) {
+        const term = terms[i];
+        await this.prisma.noteChunk.create({
+          data: {
+            noteId,
+            content: `TERM: ${term.term}\nDEF: ${term.definition}`,
+            chunkIndex: 100 + i,
+          },
+        });
       }
 
       // Schedule spaced repetition reminders
       const note = await this.prisma.note.findUnique({ where: { id: noteId } });
+      if (!note) {
+        // Note was deleted before processing finished — nothing to update
+        return;
+      }
       const intervals = [1, 3, 7, 14, 30];
       for (const days of intervals) {
         await this.prisma.reminder.create({
@@ -143,7 +198,12 @@ export class FilesService {
 
       await this.prisma.note.update({
         where: { id: noteId },
-        data: { processingStatus: 'DONE', summary, content },
+        data: {
+          processingStatus: 'DONE',
+          summary,
+          content,
+          ...(pageCount !== undefined ? { pageCount } : {}),
+        },
       });
 
       this.eventEmitter.emit('note.processed', { noteId, userId: note.userId });
@@ -168,7 +228,7 @@ export class FilesService {
       url = `${this.publicUrl}/${key}`;
     } catch (err) {
       this.logger.warn('R2 attachment upload failed', err);
-      url = `/uploads/${file.originalname}`;
+      url = `/uploads/${key}`;
     }
     const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
@@ -185,7 +245,7 @@ export class FilesService {
   async findOne(id: string, userId: string) {
     const note = await this.prisma.note.findFirst({
       where: { id, userId },
-      include: { chunks: true },
+      include: { chunks: { orderBy: { chunkIndex: 'asc' } } },
     });
     if (!note) throw new NotFoundException('Note not found');
     return note;

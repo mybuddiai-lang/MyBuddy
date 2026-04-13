@@ -95,27 +95,70 @@ Score:`;
   }
 
   async summarizeContent(content: string): Promise<string> {
-    const prompt = `Summarize the following academic content in 3-5 bullet points. Focus on key concepts a student needs to remember.
+    const prompt = `Analyze the following academic content and return a structured JSON summary.
 
 Content:
-${content.slice(0, 3000)}
+${content.slice(0, 8000)}
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "overview": "2-3 sentence paragraph summarizing the main topic and scope of this material",
+  "topics": ["Main topic or concept 1", "Main topic or concept 2", "Main topic or concept 3"],
+  "takeaways": ["Most important point students must remember", "Second critical takeaway", "Third key takeaway"]
+}
+
+JSON:`;
+    try {
+      const result = await this.openai.complete(prompt, 700);
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.overview && Array.isArray(parsed.topics)) return jsonMatch[0];
+      }
+    } catch { /* fall through to plain-text fallback */ }
+
+    // Plain-text fallback so old callers still get something useful
+    const fallback = `Summarize the following academic content in 3-5 bullet points. Focus on key concepts a student needs to remember.
+
+Content:
+${content.slice(0, 4000)}
 
 Summary:`;
-    return this.openai.complete(prompt, 400);
+    return this.openai.complete(fallback, 400);
   }
 
   async extractHighYieldFacts(content: string): Promise<Array<{ question: string; answer: string }>> {
-    const prompt = `Extract 5-8 high-yield facts from this academic content as question-answer flashcard pairs.
+    const prompt = `Extract 10-12 high-yield, testable facts from this academic content as question-answer flashcard pairs. Focus on mechanisms, definitions, clinical correlations, and exam-critical concepts.
 
 Content:
-${content.slice(0, 3000)}
+${content.slice(0, 8000)}
 
-Return ONLY a valid JSON array in this exact format:
+Return ONLY a valid JSON array (no markdown, no explanation):
 [{"question": "...", "answer": "..."}, ...]
 
 JSON:`;
     try {
-      const result = await this.openai.complete(prompt, 800);
+      const result = await this.openai.complete(prompt, 1400);
+      const jsonMatch = result.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return [];
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      return [];
+    }
+  }
+
+  async extractKeyTerms(content: string): Promise<Array<{ term: string; definition: string }>> {
+    const prompt = `Extract 6-8 key terms, definitions, or important named concepts from this academic content. Include technical terms, named laws/syndromes/principles, and domain-specific vocabulary.
+
+Content:
+${content.slice(0, 8000)}
+
+Return ONLY a valid JSON array (no markdown, no explanation):
+[{"term": "...", "definition": "..."}, ...]
+
+JSON:`;
+    try {
+      const result = await this.openai.complete(prompt, 900);
       const jsonMatch = result.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];
       return JSON.parse(jsonMatch[0]);

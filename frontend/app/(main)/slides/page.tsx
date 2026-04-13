@@ -10,6 +10,16 @@ import { useSlides } from '@/lib/hooks/use-slides';
 import toast from 'react-hot-toast';
 import type { Note } from '@/lib/api/slides';
 
+// Parse structured JSON summary → return plain overview text, fall back to raw string for legacy notes
+function summaryPreview(raw?: string): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.overview === 'string') return parsed.overview;
+  } catch { /* plain-text summary */ }
+  return raw;
+}
+
 const fileTypeIcon: Record<string, React.ReactNode> = {
   PDF: <FileText size={16} className="text-red-500" />,
   IMAGE: <Image size={16} className="text-blue-500" />,
@@ -48,7 +58,7 @@ export default function SlidesPage() {
     maxSize: 20 * 1024 * 1024,
   });
 
-  const filtered = notes.filter(n => n.title.toLowerCase().includes(search.toLowerCase()));
+  const filtered = notes.filter(n => (n.title ?? '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -117,7 +127,7 @@ export default function SlidesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-zinc-800 truncate">{note.title}</p>
-                  {note.summary && <p className="text-xs text-zinc-400 truncate mt-0.5">{note.summary}</p>}
+                  {note.summary && <p className="text-xs text-zinc-400 truncate mt-0.5">{summaryPreview(note.summary)}</p>}
                   <div className="flex items-center gap-2 mt-1.5">
                     {status === 'processing' || status === 'pending' ? (
                       <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">

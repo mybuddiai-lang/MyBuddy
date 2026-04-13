@@ -34,7 +34,7 @@ export function useCommunitySocket(communityId: string, handlers: CommunitySocke
     const socket = io(`${WS_URL}/ws`, {
       auth: { token },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 2000,
     });
 

@@ -36,8 +36,8 @@ export class CommunityController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.communityService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.communityService.findOne(id, userId);
   }
 
   @Post(':id/join')

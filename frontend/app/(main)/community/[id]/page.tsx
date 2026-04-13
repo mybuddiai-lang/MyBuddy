@@ -127,8 +127,9 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       authorId: userId,
       author: { id: userId, name: 'You' },
       content: replyText.trim(),
-      attachmentUrl: resolvedUrl ?? (attachFile ? URL.createObjectURL(attachFile) : undefined),
-      attachmentType: resolvedType ?? undefined,
+      // Only include attachment URL when it was successfully uploaded
+      attachmentUrl: resolvedUrl,
+      attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
       createdAt: new Date().toISOString(),
     };
     setReplies(prev => [...prev, optimistic]);
@@ -144,7 +145,14 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       });
       const created = (res as any)?.data?.data;
       if (created?.id) {
+        // Swap optimistic entry with the real one from the server
         setReplies(prev => prev.map(r => r.id === optimistic.id ? created : r));
+      } else {
+        // Unexpected response shape — refetch authoritative list so the UI
+        // stays in sync (the reply was created, we just couldn't confirm it)
+        communityApi.getReplies(communityId, postId)
+          .then((r: any) => setReplies(r?.data?.data ?? r?.data ?? []))
+          .catch(() => setReplies(prev => prev.filter(r => r.id !== optimistic.id)));
       }
     } catch {
       toast.error('Failed to send reply. Please try again.');
@@ -569,12 +577,12 @@ export default function PodDetailPage() {
     onNewReply: ({ postId }) => {
       // Increment reply count on the post so the UI reflects it
       setPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, repliesCount: p.repliesCount + 1 } : p
+        p.id === postId ? { ...p, repliesCount: (p.repliesCount ?? 0) + 1 } : p
       ));
     },
     onDeleteReply: ({ postId }) => {
       setPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, repliesCount: Math.max(0, p.repliesCount - 1) } : p
+        p.id === postId ? { ...p, repliesCount: Math.max(0, (p.repliesCount ?? 0) - 1) } : p
       ));
     },
     onNewPoll: (poll) => {
@@ -599,16 +607,15 @@ export default function PodDetailPage() {
       })
       .catch(() => {});
 
-    // Pod meta (includes myRole)
-    communityApi.getAll()
+    // Pod meta — getOne now returns myRole for the requesting user
+    communityApi.getOne(id)
       .then((res: any) => {
-        const all: any[] = res?.data?.data ?? [];
-        const found = all.find((p: any) => p.id === id);
-        if (found) {
+        const found = res?.data?.data ?? res?.data;
+        if (found?.id) {
           setPod({
             name: found.name,
             description: found.description || '',
-            field: found.field || 'General',
+            field: found.field || found.subjectFilter || 'General',
             memberCount: found.memberCount,
             requiresApproval: found.requiresApproval ?? false,
             myRole: found.myRole ?? null,
@@ -677,8 +684,11 @@ export default function PodDetailPage() {
       authorId: user?.id || '',
       author: { id: user?.id || '', name: user?.name || 'You' },
       content,
-      attachmentUrl: resolvedUrl ?? (file ? URL.createObjectURL(file) : undefined),
-      attachmentType: resolvedType ?? undefined,
+      // Only include attachment if it was successfully uploaded — never use a
+      // local blob URL, which is meaningless to other members and misleading
+      // when the upload actually failed.
+      attachmentUrl: resolvedUrl,
+      attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
@@ -706,6 +716,14 @@ export default function PodDetailPage() {
           const seen = new Set<string>();
           return replaced.filter(p => !seen.has(p.id) && !!seen.add(p.id));
         });
+      } else {
+        // Unexpected response shape — refetch to get the authoritative list
+        communityApi.getPosts(id)
+          .then((r: any) => {
+            const apiPosts: CommunityPost[] = r?.data?.data ?? r?.data ?? [];
+            setPosts(apiPosts.map(p => ({ ...p, liked: false })));
+          })
+          .catch(() => setPosts(prev => prev.filter(p => p.id !== optimistic.id)));
       }
     } catch {
       toast.error('Failed to post. Please try again.');
