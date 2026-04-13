@@ -135,13 +135,13 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Attachment upload (Cloudflare R2) — bypasses proxy, goes direct to backend
+  // Attachment upload — goes through the Next.js proxy (which streams the body
+  // correctly for multipart/form-data). No direct backend URL required.
   uploadAttachment: async (file: File) => {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${backendUrl}/files/upload-attachment`, {
+    const res = await fetch('/api/backend/files/upload-attachment', {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,

@@ -11,12 +11,12 @@ export interface Note {
   createdAt: string;
 }
 
-// Multipart uploads bypass the Next.js proxy and go directly to the backend.
-// The proxy's arrayBuffer() approach strips multipart boundaries in Next.js 15.
+// Multipart uploads go through the Next.js proxy at /api/backend.
+// The proxy now streams the body directly (req.body as ReadableStream)
+// which correctly preserves multipart/form-data boundaries in Next.js 15.
 async function directUpload(path: string, form: FormData): Promise<any> {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
   const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-  const res = await fetch(`${backendUrl}${path}`, {
+  const res = await fetch(`/api/backend${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,

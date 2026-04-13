@@ -26,14 +26,17 @@ async function handler(
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
 
   try {
-    const body = hasBody ? await req.arrayBuffer() : undefined;
-
+    // Stream the request body directly — do NOT buffer with arrayBuffer().
+    // Buffering breaks multipart/form-data: the content-type boundary is
+    // preserved in the raw stream but can be mangled when re-encoded.
+    // duplex:'half' is required by Node 18+ fetch when sending a ReadableStream body.
     const response = await fetch(targetUrl, {
       method: req.method,
       headers,
-      body: body ?? undefined,
+      body: hasBody ? (req.body as ReadableStream) : undefined,
+      ...(hasBody ? { duplex: 'half' } : {}),
       redirect: 'manual', // forward redirects to browser (required for Google OAuth)
-    });
+    } as RequestInit);
 
     // Forward 3xx redirects directly to the browser
     if (response.status >= 300 && response.status < 400) {
