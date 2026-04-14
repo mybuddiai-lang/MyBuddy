@@ -39,28 +39,45 @@ function relativeTime(dateStr: string): string {
 // ─── Attachment preview ───────────────────────────────────────────────────────
 
 function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE' | 'VOICE' }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
   if (!url) return null;
-  if (type === 'IMAGE') {
+
+  if (type === 'IMAGE' && !imgError) {
     return (
-      <img
-        src={url}
-        alt="attachment"
-        className="mt-2 max-h-48 rounded-xl object-cover border border-zinc-100"
-        onError={e => {
-          const img = e.currentTarget;
-          img.style.display = 'none';
-          const fallback = document.createElement('div');
-          fallback.className = 'mt-2 flex items-center gap-2 text-xs text-zinc-400 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100';
-          fallback.innerHTML = '<span>🖼️ Image unavailable</span>';
-          img.parentNode?.insertBefore(fallback, img.nextSibling);
-        }}
-      />
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+        <div className={`relative rounded-xl overflow-hidden bg-zinc-100 ${imgLoaded ? '' : 'min-h-[120px]'}`}>
+          <img
+            src={url}
+            alt="attachment"
+            className={`max-w-[240px] w-full object-cover rounded-xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+          {!imgLoaded && (
+            <div className="w-[240px] h-[140px] flex items-center justify-center">
+              <div className="w-5 h-5 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+      </a>
     );
   }
+
+  if (type === 'IMAGE' && imgError) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-zinc-400 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100">
+        <span>🖼️ Image unavailable</span>
+      </div>
+    );
+  }
+
   if (type === 'VOICE') {
     return <audio controls src={url} className="mt-2 w-full h-8" />;
   }
-  const filename = url.split('/').pop() || 'File';
+
+  const filename = url.split('/').pop()?.split('?')[0] || 'File';
   return (
     <a href={url} target="_blank" rel="noopener noreferrer"
       className="mt-2 flex items-center gap-2 text-xs text-brand-600 bg-brand-50 rounded-lg px-3 py-2 border border-brand-100 w-fit">
@@ -78,8 +95,14 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const [replyText, setReplyText] = useState('');
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachType, setAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
+  const [attachPreviewUrl, setAttachPreviewUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Revoke blob preview URL on cleanup
+  useEffect(() => {
+    return () => { if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl); };
+  }, [attachPreviewUrl]);
 
   useEffect(() => {
     setLoadError(false);
@@ -99,7 +122,16 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAttachFile(file);
+    if (file) {
+      setAttachFile(file);
+      if (file.type.startsWith('image/')) {
+        if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+        setAttachPreviewUrl(URL.createObjectURL(file));
+      } else {
+        if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+        setAttachPreviewUrl(null);
+      }
+    }
     e.target.value = '';
   };
 
@@ -136,6 +168,8 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     setReplyText('');
     setAttachFile(null);
     setAttachType(null);
+    if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+    setAttachPreviewUrl(null);
 
     try {
       const res = await communityApi.createReply(communityId, postId, {
@@ -183,25 +217,43 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         </div>
       ))}
 
+      {/* Pending attachment preview */}
+      {attachFile && (
+        <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+          {attachPreviewUrl ? (
+            <img src={attachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+          ) : (
+            <Paperclip size={11} className="text-zinc-400 shrink-0" />
+          )}
+          <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{attachFile.name}</span>
+          <button
+            onClick={() => {
+              if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+              setAttachPreviewUrl(null);
+              setAttachFile(null);
+              setAttachType(null);
+            }}
+            className="ml-auto text-zinc-400 hover:text-red-400 transition"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
+
       {/* Reply compose */}
-      <div className="flex items-end gap-2 bg-white border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-brand-300 transition">
+      <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-brand-300 transition">
         <textarea
           value={replyText}
           onChange={e => setReplyText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           placeholder="Write a reply…"
           rows={1}
-          onInput={e => {
-            const t = e.target as HTMLTextAreaElement;
-            t.style.height = 'auto';
-            t.style.height = Math.min(t.scrollHeight, 80) + 'px';
-          }}
-          className="flex-1 bg-transparent text-xs text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed py-0.5"
-          style={{ maxHeight: '80px' }}
+          className="flex-1 bg-transparent text-xs text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+          style={{ height: '20px' }}
         />
 
         {/* Attach button group */}
-        <div className="flex items-center gap-1 shrink-0 mb-0.5">
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => handleAttach('IMAGE')} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 transition" title="Attach image">
             <ImageIcon size={13} />
           </button>
@@ -223,17 +275,6 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
           </button>
         </div>
       </div>
-
-      {/* Selected file indicator */}
-      {attachFile && (
-        <div className="flex items-center gap-2 text-xs text-zinc-500 ml-1">
-          <Paperclip size={11} />
-          <span className="truncate max-w-[200px]">{attachFile.name}</span>
-          <button onClick={() => setAttachFile(null)} className="text-zinc-400 hover:text-red-400">
-            <X size={11} />
-          </button>
-        </div>
-      )}
 
       <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
     </div>
@@ -538,6 +579,7 @@ export default function PodDetailPage() {
   const [newPost, setNewPost] = useState('');
   const [postAttachFile, setPostAttachFile] = useState<File | null>(null);
   const [postAttachType, setPostAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
+  const [postAttachPreviewUrl, setPostAttachPreviewUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [pollLoadError, setPollLoadError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -545,6 +587,11 @@ export default function PodDetailPage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const postFileRef = useRef<HTMLInputElement>(null);
+
+  // Revoke pending image preview blob URL on cleanup
+  useEffect(() => {
+    return () => { if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl); };
+  }, [postAttachPreviewUrl]);
 
   const isPlatformAdmin = user?.role === 'ADMIN';
   const isAdmin = pod?.myRole === 'ADMIN' || isPlatformAdmin;
@@ -693,7 +740,9 @@ export default function PodDetailPage() {
     setNewPost('');
     setPostAttachFile(null);
     setPostAttachType(null);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
+    if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+    setPostAttachPreviewUrl(null);
+    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' }), 50);
 
     try {
       const res = await communityApi.createPost(id, {
@@ -1042,33 +1091,41 @@ export default function PodDetailPage() {
 
       {/* Compose bar (posts only) */}
       {activeTab === 'posts' && (
-        <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-1.5">
-          {/* Selected file indicator */}
+        <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-2">
+          {/* Pending attachment preview */}
           {postAttachFile && (
-            <div className="flex items-center gap-2 text-xs text-zinc-500 ml-1">
-              <Paperclip size={11} />
-              <span className="truncate max-w-[200px]">{postAttachFile.name}</span>
-              <button onClick={() => { setPostAttachFile(null); setPostAttachType(null); }} className="text-zinc-400 hover:text-red-400">
-                <X size={11} />
+            <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+              {postAttachPreviewUrl ? (
+                <img src={postAttachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+              ) : (
+                <Paperclip size={13} className="text-zinc-400 shrink-0" />
+              )}
+              <span className="text-xs text-zinc-600 font-medium truncate max-w-[180px]">{postAttachFile.name}</span>
+              <button
+                onClick={() => {
+                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+                  setPostAttachPreviewUrl(null);
+                  setPostAttachFile(null);
+                  setPostAttachType(null);
+                }}
+                className="ml-auto text-zinc-400 hover:text-red-400 transition"
+              >
+                <X size={13} />
               </button>
             </div>
           )}
-          <div className="flex items-end gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
+
+          <div className="flex items-center gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
             <textarea
               value={newPost}
               onChange={e => setNewPost(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
               placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
               rows={1}
-              onInput={e => {
-                const t = e.target as HTMLTextAreaElement;
-                t.style.height = 'auto';
-                t.style.height = Math.min(t.scrollHeight, 100) + 'px';
-              }}
-              className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed py-1"
-              style={{ maxHeight: '100px' }}
+              className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+              style={{ height: '24px' }}
             />
-            <div className="flex items-center gap-1 shrink-0 mb-0.5">
+            <div className="flex items-center gap-1 shrink-0">
               <button onClick={() => handlePostAttach('IMAGE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach image">
                 <ImageIcon size={15} />
               </button>
@@ -1096,7 +1153,16 @@ export default function PodDetailPage() {
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0];
-              if (file) setPostAttachFile(file);
+              if (file) {
+                setPostAttachFile(file);
+                if (file.type.startsWith('image/')) {
+                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+                  setPostAttachPreviewUrl(URL.createObjectURL(file));
+                } else {
+                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+                  setPostAttachPreviewUrl(null);
+                }
+              }
               e.target.value = '';
             }}
           />
