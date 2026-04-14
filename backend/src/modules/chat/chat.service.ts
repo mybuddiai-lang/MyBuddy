@@ -35,7 +35,13 @@ export class ChatService {
 
     // Save user message immediately (sentiment updated async in background)
     const userMessage = await this.prisma.chatMessage.create({
-      data: { userId, role: 'USER', content: dto.content, tokenCount: 0 },
+      data: {
+        userId,
+        role: 'USER',
+        content: dto.content,
+        tokenCount: 0,
+        ...(dto.attachmentUrl ? { metadata: { attachmentUrl: dto.attachmentUrl, attachmentType: dto.attachmentType ?? 'FILE' } } : {}),
+      },
     });
 
     // Get AI response — single blocking OpenAI call
@@ -114,13 +120,18 @@ export class ChatService {
     ]);
 
     return {
-      messages: messages.map(m => ({
-        id: m.id,
-        role: m.role.toLowerCase(),
-        content: m.content,
-        sentimentScore: m.sentimentScore,
-        createdAt: m.createdAt,
-      })),
+      messages: messages.map(m => {
+        const meta = m.metadata as { attachmentUrl?: string; attachmentType?: string } | null;
+        return {
+          id: m.id,
+          role: m.role.toLowerCase(),
+          content: m.content,
+          sentimentScore: m.sentimentScore,
+          createdAt: m.createdAt,
+          attachmentUrl: meta?.attachmentUrl,
+          attachmentType: meta?.attachmentType,
+        };
+      }),
       total,
       page,
       pages: Math.ceil(total / limit),

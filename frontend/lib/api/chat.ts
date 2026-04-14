@@ -5,12 +5,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   sentimentScore?: number;
+  attachmentUrl?: string;
+  attachmentType?: 'IMAGE' | 'FILE' | 'VOICE';
   createdAt: string;
 }
 
 export const chatApi = {
-  async sendMessage(content: string): Promise<ChatMessage> {
-    const { data } = await apiClient.post('/chat/message', { content });
+  async sendMessage(payload: { content: string; attachmentUrl?: string; attachmentType?: string }): Promise<ChatMessage> {
+    const { data } = await apiClient.post('/chat/message', payload);
     return data.data;
   },
   async getHistory(page = 1, limit = 30): Promise<{ messages: ChatMessage[]; total: number }> {

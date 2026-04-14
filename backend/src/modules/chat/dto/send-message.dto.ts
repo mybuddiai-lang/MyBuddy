@@ -12,4 +12,9 @@ export class SendMessageDto {
   @IsOptional()
   @IsString()
   attachmentUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  attachmentType?: string;
 }

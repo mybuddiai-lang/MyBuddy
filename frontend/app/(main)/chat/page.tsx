@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, X, FileText, Image, Mic } from 'lucide-react';
+import { Send, Paperclip, X, FileText, Image as ImageIcon, Mic, ImagePlus } from 'lucide-react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useChatStore } from '@/lib/store/chat.store';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useSlides } from '@/lib/hooks/use-slides';
+import toast from 'react-hot-toast';
 import type { Message } from '@/components/chat/message-bubble';
 
 const SUGGESTED_PROMPTS = [
@@ -17,7 +18,6 @@ const SUGGESTED_PROMPTS = [
   "Give me a quick quiz on my last upload",
 ];
 
-// Demo messages shown when there's no chat history
 const DEMO_MESSAGES: Message[] = [
   {
     id: 'demo-1',
@@ -34,11 +34,20 @@ const DEMO_MESSAGES: Message[] = [
 ];
 
 const FILE_ICONS: Record<string, React.ReactNode> = {
-  PDF: <FileText size={14} className="text-red-500" />,
-  IMAGE: <Image size={14} className="text-blue-500" />,
+  PDF:   <FileText size={14} className="text-red-500" />,
+  IMAGE: <ImageIcon size={14} className="text-blue-500" />,
   VOICE: <Mic size={14} className="text-green-500" />,
-  TEXT: <FileText size={14} className="text-zinc-500" />,
+  TEXT:  <FileText size={14} className="text-zinc-500" />,
 };
+
+type AttachmentType = 'IMAGE' | 'FILE' | 'VOICE';
+
+interface PendingAttachment {
+  url: string;
+  type: AttachmentType;
+  previewUrl?: string; // local blob URL for images
+  name: string;
+}
 
 export default function ChatPage() {
   const { messages, isTyping, isLoadingHistory, sendMessage, loadHistory } = useChatStore();
@@ -47,36 +56,46 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [showDemo, setShowDemo] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadHistory().then(() => {
-      // Check store directly after load resolves to avoid stale closure
-      if (useChatStore.getState().messages.length === 0) {
-        setShowDemo(true);
-      }
+      if (useChatStore.getState().messages.length === 0) setShowDemo(true);
     });
   }, []);
 
-  // Only scroll to bottom when real messages exist or assistant is typing.
-  // Intentionally excludes showDemo so loading the sample conversation
-  // doesn't jump to the bottom and hide the header.
+  // Scroll to bottom instantly (no smooth) to avoid glitch when new messages appear
   useEffect(() => {
     if (messages.length > 0 || isTyping) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages, isTyping]);
+
+  // Revoke blob URL on cleanup to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (pendingAttachment?.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+    };
+  }, [pendingAttachment]);
 
   const displayMessages = messages.length > 0 ? messages : (showDemo ? DEMO_MESSAGES : []);
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text && !pendingAttachment) return;
     setShowDemo(false);
     setInput('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    await sendMessage(text);
+    const attachment = pendingAttachment;
+    setPendingAttachment(null);
+    await sendMessage({
+      content: text,
+      attachmentUrl: attachment?.url,
+      attachmentType: attachment?.type,
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -93,21 +112,55 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   };
 
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-  };
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) { toast.error('Not authenticated'); return; }
+
+    setIsUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/backend/files/upload-attachment', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const json = await res.json();
+      const { url, type } = json.data ?? json;
+
+      // Create a local preview URL for images so the user can see it before sending
+      const previewUrl = type === 'IMAGE' ? URL.createObjectURL(file) : undefined;
+      setPendingAttachment({ url, type, previewUrl, name: file.name });
+    } catch {
+      toast.error('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const canSend = (input.trim().length > 0 || !!pendingAttachment) && !isUploading;
 
   return (
     <div
       className="flex flex-col"
       style={{
-        // 56px = header content, 64px = nav content.
-        // env() values are non-zero now that viewport-fit=cover is active.
         height: 'calc(100dvh - 56px - 64px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
       }}
     >
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf,audio/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
         {isLoadingHistory ? (
@@ -198,7 +251,6 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-zinc-800 truncate">{note.title}</p>
-                      {note.summary && <p className="text-xs text-zinc-400 truncate">{note.summary}</p>}
                     </div>
                   </button>
                 ))
@@ -208,31 +260,81 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Input bar */}
+      {/* Pending attachment preview */}
+      <AnimatePresence>
+        {pendingAttachment && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            className="mx-4 mb-2"
+          >
+            <div className="relative inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl px-3 py-2 border border-zinc-200 dark:border-zinc-700">
+              {pendingAttachment.type === 'IMAGE' && pendingAttachment.previewUrl ? (
+                <img src={pendingAttachment.previewUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+              ) : pendingAttachment.type === 'VOICE' ? (
+                <Mic size={16} className="text-green-500 shrink-0" />
+              ) : (
+                <FileText size={16} className="text-red-500 shrink-0" />
+              )}
+              <span className="text-xs text-zinc-700 dark:text-zinc-200 font-medium max-w-[160px] truncate">
+                {pendingAttachment.name}
+              </span>
+              <button
+                onClick={() => {
+                  if (pendingAttachment.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+                  setPendingAttachment(null);
+                }}
+                className="ml-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Input bar — static, never resizes */}
       <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-end gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
+        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-3 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
+          {/* Attach note from slides */}
           <button
             onClick={() => setShowAttach(v => !v)}
-            className={`mb-1.5 transition shrink-0 ${showAttach ? 'text-brand-500' : 'text-zinc-400 hover:text-zinc-600'}`}
+            className={`shrink-0 transition ${showAttach ? 'text-brand-500' : 'text-zinc-400 hover:text-zinc-600'}`}
           >
             <Paperclip size={18} />
           </button>
+
+          {/* Upload image/file */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="shrink-0 text-zinc-400 hover:text-brand-500 disabled:opacity-50 transition"
+          >
+            {isUploading
+              ? <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+              : <ImagePlus size={18} />
+            }
+          </button>
+
+          {/* Static single-line textarea — no auto-resize */}
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={handleTextareaChange}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Message Buddi..."
             rows={1}
-            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed"
-            style={{ maxHeight: '120px' }}
+            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed overflow-hidden"
+            style={{ height: '24px' }}
           />
+
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
-            className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center shrink-0 mb-0.5 transition"
+            disabled={!canSend}
+            className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-700 flex items-center justify-center shrink-0 transition"
           >
-            <Send size={14} className={input.trim() ? 'text-white' : 'text-zinc-400'} />
+            <Send size={14} className={canSend ? 'text-white' : 'text-zinc-400'} />
           </button>
         </div>
         <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-2">Buddi is an AI companion. Not a substitute for professional advice.</p>
