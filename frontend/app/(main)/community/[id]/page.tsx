@@ -855,7 +855,16 @@ export default function PodDetailPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)]">
+    <div
+      className="flex flex-col bg-white dark:bg-zinc-950"
+      style={{
+        position: 'fixed',
+        top: 'calc(56px + env(safe-area-inset-top, 0px))',
+        bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+        left: 0,
+        right: 0,
+      }}
+    >
       {/* Header */}
       <div className="px-4 py-3 bg-white border-b border-zinc-100 flex items-center gap-3 shrink-0">
         <button onClick={() => router.back()} className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition shrink-0">

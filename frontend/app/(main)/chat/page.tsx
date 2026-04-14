@@ -147,9 +147,13 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex flex-col"
+      className="flex flex-col bg-zinc-50 dark:bg-zinc-950"
       style={{
-        height: 'calc(100dvh - 56px - 64px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+        position: 'fixed',
+        top: 'calc(56px + env(safe-area-inset-top, 0px))',
+        bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+        left: 0,
+        right: 0,
       }}
     >
       {/* Hidden file input */}
