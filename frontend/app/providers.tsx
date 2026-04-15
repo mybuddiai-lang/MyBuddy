@@ -87,7 +87,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
           position="top-center"
           toastOptions={{
             duration: 3000,
-            className: '',
             style: {
               borderRadius: '12px',
               background: '#18181b',
@@ -95,7 +94,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
               fontSize: '14px',
             },
             success: { iconTheme: { primary: '#6b5cf6', secondary: '#fff' } },
-            custom: { style: { background: 'transparent', boxShadow: 'none', padding: 0 } },
           }}
         />
       </PersistQueryClientProvider>

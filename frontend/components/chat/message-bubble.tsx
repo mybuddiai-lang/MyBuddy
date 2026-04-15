@@ -53,9 +53,12 @@ function AttachmentPreview({ url, previewUrl, type, isUser }: { url: string; pre
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [lightbox, setLightbox] = useState(false);
+  // When the blob previewUrl fails, flip this to true to switch src to the remote URL.
+  // Without this, the error handler would call setImgLoaded(false) without changing src,
+  // causing the browser to retry the same failing URL indefinitely.
+  const [useFallback, setUseFallback] = useState(false);
 
-  // Use local blob preview first (shows immediately), fall back to remote URL
-  const imgSrc = previewUrl || url;
+  const imgSrc = (!useFallback && previewUrl) ? previewUrl : url;
 
   if (type === 'IMAGE' && !imgError) {
     return (
@@ -71,10 +74,12 @@ function AttachmentPreview({ url, previewUrl, type, isUser }: { url: string; pre
               className={`max-w-[200px] w-full object-cover rounded-2xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
               onLoad={() => setImgLoaded(true)}
               onError={() => {
-                // If blob/preview failed, try remote URL
-                if (previewUrl && imgSrc === previewUrl) {
+                if (!useFallback && previewUrl) {
+                  // Blob/preview URL failed — switch to the remote URL
+                  setUseFallback(true);
                   setImgLoaded(false);
                 } else {
+                  // Remote URL also failed (or no preview existed)
                   setImgError(true);
                 }
               }}

@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import toast from 'react-hot-toast';
 import { Bell, Users, CheckCircle } from 'lucide-react';
 import { useGlobalSocket } from '@/lib/hooks/use-global-socket';
@@ -16,6 +17,14 @@ function NotificationToast({ icon, title, body }: { icon: React.ReactNode; title
   );
 }
 
+// Per-toast style that resets the global dark background applied by Providers' Toaster
+const CUSTOM_TOAST_STYLE: React.CSSProperties = {
+  background: 'transparent',
+  boxShadow: 'none',
+  padding: 0,
+  maxWidth: '360px',
+};
+
 export function NotificationListener() {
   useGlobalSocket({
     onReminderDue: (data) => {
@@ -29,7 +38,7 @@ export function NotificationListener() {
             body={body}
           />
         ),
-        { duration: 6000, position: 'top-center' },
+        { duration: 6000, position: 'top-center', style: CUSTOM_TOAST_STYLE },
       );
     },
 
@@ -42,7 +51,7 @@ export function NotificationListener() {
             body={`${data.userName} just joined`}
           />
         ),
-        { duration: 4000, position: 'top-center' },
+        { duration: 4000, position: 'top-center', style: CUSTOM_TOAST_STYLE },
       );
     },
 
@@ -55,7 +64,7 @@ export function NotificationListener() {
             body={`You can now post in ${data.communityName}`}
           />
         ),
-        { duration: 5000, position: 'top-center' },
+        { duration: 5000, position: 'top-center', style: CUSTOM_TOAST_STYLE },
       );
     },
   });
