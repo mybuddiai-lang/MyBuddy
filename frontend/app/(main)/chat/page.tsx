@@ -8,6 +8,7 @@ import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useChatStore } from '@/lib/store/chat.store';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useSlides } from '@/lib/hooks/use-slides';
+import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
 import type { Message } from '@/components/chat/message-bubble';
 
@@ -148,7 +149,38 @@ export default function ChatPage() {
     }
   }, []);
 
-  const canSend = (input.trim().length > 0 || !!pendingAttachment) && !isUploading;
+  // Upload recorded voice file and set as pending attachment
+  const handleVoiceFile = useCallback(async (file: File) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) return;
+    setIsUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/backend/files/upload-attachment', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const json = await res.json();
+      const { url } = json.data ?? json;
+      setPendingAttachment({ url, type: 'VOICE', name: file.name });
+    } catch {
+      toast.error('Failed to upload voice note. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const { isRecording, recordingTime, toggleRecording } = useVoiceRecorder(handleVoiceFile);
+
+  const handleMicToggle = useCallback(async () => {
+    try { await toggleRecording(); }
+    catch { toast.error('Could not access microphone. Please check permissions.'); }
+  }, [toggleRecording]);
+
+  const canSend = (input.trim().length > 0 || !!pendingAttachment) && !isUploading && !isRecording;
 
   return (
     <div
@@ -165,7 +197,7 @@ export default function ChatPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,application/pdf,audio/*"
+        accept="image/*,application/pdf"
         className="hidden"
         onChange={handleFileSelect}
       />
@@ -334,8 +366,8 @@ export default function ChatPage() {
           {/* Upload image/file */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="shrink-0 mb-0.5 text-zinc-400 hover:text-brand-500 disabled:opacity-50 transition"
+            disabled={isUploading || isRecording}
+            className="shrink-0 mb-0.5 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition"
           >
             {isUploading
               ? <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
@@ -343,22 +375,42 @@ export default function ChatPage() {
             }
           </button>
 
-          {/* Auto-growing textarea */}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={e => {
-              setInput(e.target.value);
-              const ta = e.target;
-              ta.style.height = 'auto';
-              ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Message Buddi..."
-            rows={1}
-            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed"
-            style={{ minHeight: '24px', maxHeight: '120px', overflowY: 'auto' }}
-          />
+          {/* Mic — record voice note directly */}
+          <button
+            onClick={handleMicToggle}
+            disabled={isUploading}
+            title={isRecording ? 'Stop recording' : 'Record voice note'}
+            className={`shrink-0 mb-0.5 transition disabled:opacity-40 ${
+              isRecording ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500'
+            }`}
+          >
+            <Mic size={18} className={isRecording ? 'animate-pulse' : ''} />
+          </button>
+
+          {/* Textarea or recording indicator */}
+          {isRecording ? (
+            <div className="flex-1 flex items-center gap-2 min-h-[24px]">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="text-sm font-mono text-red-500 tabular-nums">{recordingTime}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">Tap mic to stop</span>
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => {
+                setInput(e.target.value);
+                const ta = e.target;
+                ta.style.height = 'auto';
+                ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Message Buddi..."
+              rows={1}
+              className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed"
+              style={{ minHeight: '24px', maxHeight: '120px', overflowY: 'auto' }}
+            />
+          )}
 
           <button
             onClick={handleSend}

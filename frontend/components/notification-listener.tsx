@@ -1,6 +1,6 @@
 'use client';
 
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { Bell, Users, CheckCircle } from 'lucide-react';
 import { useGlobalSocket } from '@/lib/hooks/use-global-socket';
 
@@ -60,5 +60,5 @@ export function NotificationListener() {
     },
   });
 
-  return <Toaster />;
+  return null;
 }

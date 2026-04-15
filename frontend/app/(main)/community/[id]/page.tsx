@@ -11,6 +11,7 @@ import {
 import { communityApi, CommunityPost, CommunityPostReply, CommunityPoll, CommunityMember, JoinRequest } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useCommunitySocket } from '@/lib/hooks/use-community-socket';
+import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
 
 interface PodMeta {
@@ -98,6 +99,18 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const [attachPreviewUrl, setAttachPreviewUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const { isRecording: isMicActive, recordingTime: micTime, toggleRecording } = useVoiceRecorder((file) => {
+    setAttachFile(file);
+    setAttachType('VOICE');
+    if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+    setAttachPreviewUrl(null);
+  });
+
+  const handleMic = async () => {
+    try { await toggleRecording(); }
+    catch { toast.error('Could not access microphone. Please check permissions.'); }
+  };
 
   // Revoke blob preview URL on cleanup
   useEffect(() => {
@@ -242,25 +255,37 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
       {/* Reply compose */}
       <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-brand-300 transition">
-        <textarea
-          value={replyText}
-          onChange={e => setReplyText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder="Write a reply…"
-          rows={1}
-          className="flex-1 bg-transparent text-xs text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
-          style={{ height: '20px' }}
-        />
+        {isMicActive ? (
+          <div className="flex-1 flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-xs font-mono text-red-500 tabular-nums">{micTime}</span>
+            <span className="text-[10px] text-zinc-400">Tap mic to stop</span>
+          </div>
+        ) : (
+          <textarea
+            value={replyText}
+            onChange={e => setReplyText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Write a reply…"
+            rows={1}
+            className="flex-1 bg-transparent text-xs text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+            style={{ height: '20px' }}
+          />
+        )}
 
         {/* Attach button group */}
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => handleAttach('IMAGE')} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 transition" title="Attach image">
+          <button onClick={() => handleAttach('IMAGE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
             <ImageIcon size={13} />
           </button>
-          <button onClick={() => handleAttach('VOICE')} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 transition" title="Attach voice note">
-            <Mic size={13} />
+          <button
+            onClick={handleMic}
+            className={`p-1 rounded-lg transition ${isMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-100'}`}
+            title={isMicActive ? 'Stop recording' : 'Record voice note'}
+          >
+            <Mic size={13} className={isMicActive ? 'animate-pulse' : ''} />
           </button>
-          <button onClick={() => handleAttach('FILE')} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 transition" title="Attach file">
+          <button onClick={() => handleAttach('FILE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
             <Paperclip size={13} />
           </button>
           <button
@@ -587,11 +612,39 @@ export default function PodDetailPage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const postFileRef = useRef<HTMLInputElement>(null);
+  // true = user is at (or near) the bottom → auto-scroll new messages into view
+  const isAtBottom = useRef(true);
+
+  const { isRecording: isPostMicActive, recordingTime: postMicTime, toggleRecording: togglePostMic } = useVoiceRecorder((file) => {
+    setPostAttachFile(file);
+    setPostAttachType('VOICE');
+    if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+    setPostAttachPreviewUrl(null);
+  });
+
+  const handlePostMic = async () => {
+    try { await togglePostMic(); }
+    catch { toast.error('Could not access microphone. Please check permissions.'); }
+  };
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
 
   // Revoke pending image preview blob URL on cleanup
   useEffect(() => {
     return () => { if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl); };
   }, [postAttachPreviewUrl]);
+
+  // Auto-scroll to latest post whenever the list changes, but only if the user
+  // is already at (or near) the bottom — so manual upward scrolling isn't hijacked
+  useEffect(() => {
+    if (activeTab === 'posts' && isAtBottom.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' });
+    }
+  }, [posts, activeTab]);
 
   const isPlatformAdmin = user?.role === 'ADMIN';
   const isAdmin = pod?.myRole === 'ADMIN' || isPlatformAdmin;
@@ -736,13 +789,14 @@ export default function PodDetailPage() {
       liked: false,
       createdAt: new Date().toISOString(),
     };
+    // Always scroll to bottom when the user themselves posts
+    isAtBottom.current = true;
     setPosts(prev => [...prev, optimistic]);
     setNewPost('');
     setPostAttachFile(null);
     setPostAttachType(null);
     if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
     setPostAttachPreviewUrl(null);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' }), 50);
 
     try {
       const res = await communityApi.createPost(id, {
@@ -940,7 +994,7 @@ export default function PodDetailPage() {
       </div>
 
       {/* Content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {activeTab === 'posts' && (
           <>
             {/* Posts loading skeleton */}
@@ -1125,23 +1179,35 @@ export default function PodDetailPage() {
           )}
 
           <div className="flex items-center gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
-            <textarea
-              value={newPost}
-              onChange={e => setNewPost(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
-              placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
-              rows={1}
-              className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
-              style={{ height: '24px' }}
-            />
+            {isPostMicActive ? (
+              <div className="flex-1 flex items-center gap-2 min-h-[24px]">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <span className="text-sm font-mono text-red-500 tabular-nums">{postMicTime}</span>
+                <span className="text-xs text-zinc-400">Tap mic to stop</span>
+              </div>
+            ) : (
+              <textarea
+                value={newPost}
+                onChange={e => setNewPost(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
+                placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+                style={{ height: '24px' }}
+              />
+            )}
             <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => handlePostAttach('IMAGE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach image">
+              <button onClick={() => handlePostAttach('IMAGE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
                 <ImageIcon size={15} />
               </button>
-              <button onClick={() => handlePostAttach('VOICE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach voice">
-                <Mic size={15} />
+              <button
+                onClick={handlePostMic}
+                className={`p-1 rounded-lg transition ${isPostMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-200'}`}
+                title={isPostMicActive ? 'Stop recording' : 'Record voice note'}
+              >
+                <Mic size={15} className={isPostMicActive ? 'animate-pulse' : ''} />
               </button>
-              <button onClick={() => handlePostAttach('FILE')} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 transition" title="Attach file">
+              <button onClick={() => handlePostAttach('FILE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
                 <Paperclip size={15} />
               </button>
               <button
