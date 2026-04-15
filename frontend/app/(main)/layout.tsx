@@ -3,11 +3,13 @@ import { TopHeader } from '@/components/layout/top-header';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { ScrollToTop } from '@/components/layout/scroll-to-top';
+import { NotificationListener } from '@/components/notification-listener';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <ScrollToTop />
+      <NotificationListener />
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col">
         <PwaInstallBanner />
         <TopHeader />

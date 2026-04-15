@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class CommunityService {
   constructor(
     private prisma: PrismaService,
     @Optional() private gateway?: NotificationsGateway,
+    @Optional() private push?: PushService,
   ) {}
 
   private mapCommunity(c: any, myRole?: string | null) {
@@ -110,6 +112,10 @@ export class CommunityService {
       this.prisma.communityMember.create({ data: { communityId, userId } }),
       this.prisma.community.update({ where: { id: communityId }, data: { memberCount: { increment: 1 } } }),
     ]);
+
+    // Notify admins that a new member joined — non-blocking
+    this.notifyAdminsOfNewMember(communityId, userId, community.name).catch(() => {});
+
     return { message: 'Joined successfully' };
   }
 
@@ -191,6 +197,22 @@ export class CommunityService {
       this.prisma.communityMember.create({ data: { communityId: request.communityId, userId: request.userId } }),
       this.prisma.community.update({ where: { id: request.communityId }, data: { memberCount: { increment: 1 } } }),
     ]);
+
+    // Notify the approved user — non-blocking
+    this.prisma.community.findUnique({ where: { id: request.communityId }, select: { name: true } })
+      .then(comm => {
+        if (!comm) return;
+        const communityName = comm.name;
+        const communityId = request.communityId;
+        this.gateway?.notifyUser(request.userId, 'community:join_approved', { communityId, communityName });
+        this.push?.sendToUser(request.userId, {
+          title: 'Join request approved!',
+          body: `You can now post in ${communityName}`,
+          url: `/community/${communityId}`,
+          tag: `join-approved-${communityId}`,
+        }).catch(() => {});
+      }).catch(() => {});
+
     return { approved: true };
   }
 
@@ -233,6 +255,10 @@ export class CommunityService {
       include: { author: { select: { id: true, name: true } } },
     });
     this.gateway?.broadcastToCommunity(communityId, 'community:new_post', post);
+
+    // Push to community members not currently in the WS room — non-blocking
+    this.pushNewPostToMembers(communityId, userId, post.author?.name ?? 'Someone', content, community.name).catch(() => {});
+
     return post;
   }
 
@@ -375,6 +401,43 @@ export class CommunityService {
       this.prisma.communityPost.update({ where: { id: postId }, data: { commentsCount: { increment: 1 } } }),
     ]);
     return comment;
+  }
+
+  // ─── Private notification helpers ─────────────────────────────────────────
+
+  private async notifyAdminsOfNewMember(communityId: string, newUserId: string, communityName: string) {
+    const [newUser, admins] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: newUserId }, select: { name: true } }),
+      this.prisma.communityMember.findMany({ where: { communityId, role: 'ADMIN' }, select: { userId: true } }),
+    ]);
+    const memberName = newUser?.name ?? 'Someone';
+    const data = { communityId, communityName, userId: newUserId, userName: memberName };
+    for (const admin of admins) {
+      this.gateway?.notifyUser(admin.userId, 'community:member_joined', data);
+      this.push?.sendToUser(admin.userId, {
+        title: communityName,
+        body: `${memberName} just joined your community`,
+        url: `/community/${communityId}`,
+        tag: `member-joined-${communityId}`,
+      }).catch(() => {});
+    }
+  }
+
+  private async pushNewPostToMembers(communityId: string, authorId: string, authorName: string, content: string, communityName: string) {
+    const members = await this.prisma.communityMember.findMany({
+      where: { communityId },
+      select: { userId: true },
+    });
+    const body = content.length > 80 ? content.slice(0, 77) + '...' : content;
+    for (const member of members) {
+      if (member.userId === authorId) continue;
+      this.push?.sendToUser(member.userId, {
+        title: `${communityName} — new post`,
+        body: `${authorName}: ${body}`,
+        url: `/community/${communityId}`,
+        tag: `community-post-${communityId}`,
+      }).catch(() => {});
+    }
   }
 
   async deleteComment(commentId: string, userId: string) {
