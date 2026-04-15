@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isValid } from 'date-fns';
 import { FileText, Mic, Download, X } from 'lucide-react';
@@ -24,31 +25,27 @@ function getSentimentEmoji(score?: number): string {
 }
 
 function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
         onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
-        >
-          <X size={20} className="text-white" />
-        </button>
-        <motion.img
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          src={src}
-          alt="Full size"
-          className="max-w-full max-h-full object-contain rounded-2xl"
-          onClick={e => e.stopPropagation()}
-        />
-      </motion.div>
-    </AnimatePresence>
+        <X size={20} className="text-white" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Full size"
+        className="max-w-full max-h-full object-contain rounded-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>,
+    document.body,
   );
 }
 
@@ -67,11 +64,11 @@ function AttachmentPreview({ url, previewUrl, type, isUser }: { url: string; pre
           onClick={() => setLightbox(true)}
           className="block text-left focus:outline-none"
         >
-          <div className={`relative rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-700 ${imgLoaded ? '' : 'min-h-[160px]'}`}>
+          <div className={`relative rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-700 ${imgLoaded ? '' : 'min-h-[120px]'}`}>
             <img
               src={imgSrc}
               alt="attachment"
-              className={`max-w-[260px] w-full object-cover rounded-2xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+              className={`max-w-[200px] w-full object-cover rounded-2xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
               onLoad={() => setImgLoaded(true)}
               onError={() => {
                 // If blob/preview failed, try remote URL
@@ -83,7 +80,7 @@ function AttachmentPreview({ url, previewUrl, type, isUser }: { url: string; pre
               }}
             />
             {!imgLoaded && !imgError && (
-              <div className="w-[260px] h-[180px] flex items-center justify-center">
+              <div className="w-[200px] h-[130px] flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
@@ -167,7 +164,7 @@ export function MessageBubble({ message }: { message: Message }) {
         {/* Only render the text bubble if there's actual content */}
         {message.content && (
           <div
-            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
               isUser
                 ? 'bg-brand-500 text-white rounded-br-sm'
                 : 'bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 rounded-bl-sm shadow-card'

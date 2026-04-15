@@ -283,16 +283,16 @@ export default function ChatPage() {
                 <img
                   src={pendingAttachment.previewUrl}
                   alt={pendingAttachment.name}
-                  className="max-h-48 max-w-[220px] object-cover rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm"
+                  className="h-16 w-16 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm"
                 />
                 <button
                   onClick={() => {
                     if (pendingAttachment.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
                     setPendingAttachment(null);
                   }}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-zinc-800 dark:bg-zinc-100 flex items-center justify-center shadow transition hover:bg-zinc-600 dark:hover:bg-zinc-300"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 dark:bg-zinc-100 flex items-center justify-center shadow transition hover:bg-zinc-600 dark:hover:bg-zinc-300"
                 >
-                  <X size={12} className="text-white dark:text-zinc-900" />
+                  <X size={10} className="text-white dark:text-zinc-900" />
                 </button>
               </div>
             ) : (
