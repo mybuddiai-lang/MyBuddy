@@ -89,12 +89,17 @@ export default function ChatPage() {
     if (!text && !pendingAttachment) return;
     setShowDemo(false);
     setInput('');
+    // Reset textarea height back to one line
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '24px';
+    }
     const attachment = pendingAttachment;
     setPendingAttachment(null);
     await sendMessage({
       content: text,
       attachmentUrl: attachment?.url,
       attachmentType: attachment?.type,
+      previewUrl: attachment?.previewUrl, // keep blob URL in message so image renders instantly
     });
   };
 
@@ -264,47 +269,64 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Pending attachment preview */}
+      {/* Pending attachment preview — ChatGPT-style large image or file chip */}
       <AnimatePresence>
         {pendingAttachment && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            className="mx-4 mb-2"
+            className="px-4 pb-2"
           >
-            <div className="relative inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl px-3 py-2 border border-zinc-200 dark:border-zinc-700">
-              {pendingAttachment.type === 'IMAGE' && pendingAttachment.previewUrl ? (
-                <img src={pendingAttachment.previewUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
-              ) : pendingAttachment.type === 'VOICE' ? (
-                <Mic size={16} className="text-green-500 shrink-0" />
-              ) : (
-                <FileText size={16} className="text-red-500 shrink-0" />
-              )}
-              <span className="text-xs text-zinc-700 dark:text-zinc-200 font-medium max-w-[160px] truncate">
-                {pendingAttachment.name}
-              </span>
-              <button
-                onClick={() => {
-                  if (pendingAttachment.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
-                  setPendingAttachment(null);
-                }}
-                className="ml-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
-              >
-                <X size={14} />
-              </button>
-            </div>
+            {pendingAttachment.type === 'IMAGE' && pendingAttachment.previewUrl ? (
+              <div className="relative inline-block">
+                <img
+                  src={pendingAttachment.previewUrl}
+                  alt={pendingAttachment.name}
+                  className="max-h-48 max-w-[220px] object-cover rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm"
+                />
+                <button
+                  onClick={() => {
+                    if (pendingAttachment.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+                    setPendingAttachment(null);
+                  }}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-zinc-800 dark:bg-zinc-100 flex items-center justify-center shadow transition hover:bg-zinc-600 dark:hover:bg-zinc-300"
+                >
+                  <X size={12} className="text-white dark:text-zinc-900" />
+                </button>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl px-3 py-2 border border-zinc-200 dark:border-zinc-700">
+                {pendingAttachment.type === 'VOICE' ? (
+                  <Mic size={15} className="text-green-500 shrink-0" />
+                ) : (
+                  <FileText size={15} className="text-red-500 shrink-0" />
+                )}
+                <span className="text-xs text-zinc-700 dark:text-zinc-200 font-medium max-w-[160px] truncate">
+                  {pendingAttachment.name}
+                </span>
+                <button
+                  onClick={() => {
+                    if (pendingAttachment.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+                    setPendingAttachment(null);
+                  }}
+                  className="ml-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Input bar — static, never resizes */}
+      {/* Input bar — grows with content like ChatGPT */}
       <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-3 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
+        <div className="flex items-end gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-3 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
           {/* Attach note from slides */}
           <button
             onClick={() => setShowAttach(v => !v)}
-            className={`shrink-0 transition ${showAttach ? 'text-brand-500' : 'text-zinc-400 hover:text-zinc-600'}`}
+            className={`shrink-0 mb-0.5 transition ${showAttach ? 'text-brand-500' : 'text-zinc-400 hover:text-zinc-600'}`}
           >
             <Paperclip size={18} />
           </button>
@@ -313,7 +335,7 @@ export default function ChatPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="shrink-0 text-zinc-400 hover:text-brand-500 disabled:opacity-50 transition"
+            className="shrink-0 mb-0.5 text-zinc-400 hover:text-brand-500 disabled:opacity-50 transition"
           >
             {isUploading
               ? <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
@@ -321,22 +343,27 @@ export default function ChatPage() {
             }
           </button>
 
-          {/* Static single-line textarea — no auto-resize */}
+          {/* Auto-growing textarea */}
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              setInput(e.target.value);
+              const ta = e.target;
+              ta.style.height = 'auto';
+              ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Message Buddi..."
             rows={1}
-            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed overflow-hidden"
-            style={{ height: '24px' }}
+            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed"
+            style={{ minHeight: '24px', maxHeight: '120px', overflowY: 'auto' }}
           />
 
           <button
             onClick={handleSend}
             disabled={!canSend}
-            className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-700 flex items-center justify-center shrink-0 transition"
+            className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-700 flex items-center justify-center shrink-0 mb-0.5 transition"
           >
             <Send size={14} className={canSend ? 'text-white' : 'text-zinc-400'} />
           </button>

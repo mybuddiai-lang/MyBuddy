@@ -22,16 +22,22 @@ export class ChatService {
       select: { name: true, school: true, department: true, examDate: true },
     });
 
-    // Get recent conversation history (last 10 messages)
+    // Get recent conversation history (last 20 messages for richer memory)
     const recentMessages = await this.prisma.chatMessage.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 20,
     });
-    const history = recentMessages.reverse().map(m => ({
-      role: m.role.toLowerCase() as 'user' | 'assistant',
-      content: m.content,
-    }));
+    const history = recentMessages.reverse().map(m => {
+      const meta = m.metadata as { attachmentUrl?: string; attachmentType?: string } | null;
+      let content = m.content || '';
+      // Enrich history with attachment context so AI knows what was shared
+      if (meta?.attachmentType) {
+        const label = meta.attachmentType === 'IMAGE' ? 'an image' : meta.attachmentType === 'VOICE' ? 'a voice note' : 'a file';
+        content = content ? `${content} [attached ${label}]` : `[shared ${label}]`;
+      }
+      return { role: m.role.toLowerCase() as 'user' | 'assistant', content };
+    });
 
     // Save user message immediately (sentiment updated async in background)
     const userMessage = await this.prisma.chatMessage.create({

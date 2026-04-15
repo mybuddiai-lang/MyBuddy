@@ -6,6 +6,7 @@ interface SendPayload {
   content: string;
   attachmentUrl?: string;
   attachmentType?: 'IMAGE' | 'FILE' | 'VOICE';
+  previewUrl?: string; // local blob URL — shown immediately in optimistic message
 }
 
 interface ChatState {
@@ -24,13 +25,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingHistory: false,
   historyLoaded: false,
 
-  sendMessage: async ({ content, attachmentUrl, attachmentType }) => {
+  sendMessage: async ({ content, attachmentUrl, attachmentType, previewUrl }) => {
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content,
       attachmentUrl,
       attachmentType,
+      previewUrl, // blob URL — lets the image render instantly from local cache
       createdAt: new Date(),
     };
     set((state) => ({ messages: [...state.messages, userMsg], isTyping: true }));
