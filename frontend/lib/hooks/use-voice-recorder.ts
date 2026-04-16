@@ -52,12 +52,27 @@ export function useVoiceRecorder(onFile: (file: File) => void) {
           return;
         }
 
-        const mimeType =
-          typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')
-            ? 'audio/webm'
-            : 'audio/ogg';
+        // Determine the best supported MIME type for this browser/OS.
+        // Priority: webm (Chrome/Android) → mp4 (iOS Safari) → ogg (Firefox)
+        // Empty string = let the browser pick its native default.
+        const mimeType = (() => {
+          if (typeof MediaRecorder === 'undefined') return '';
+          for (const t of ['audio/webm', 'audio/mp4', 'audio/ogg']) {
+            if (MediaRecorder.isTypeSupported(t)) return t;
+          }
+          return '';
+        })();
 
-        const recorder = new MediaRecorder(stream, { mimeType });
+        let recorder: MediaRecorder;
+        try {
+          recorder = mimeType
+            ? new MediaRecorder(stream, { mimeType })
+            : new MediaRecorder(stream);
+        } catch {
+          // MediaRecorder construction failed (unsupported options) — clean up stream
+          stream.getTracks().forEach(t => t.stop());
+          throw new Error('Audio recording is not supported on this device');
+        }
         audioChunksRef.current = [];
 
         recorder.ondataavailable = (e) => {
@@ -68,9 +83,13 @@ export function useVoiceRecorder(onFile: (file: File) => void) {
           stream.getTracks().forEach(t => t.stop());
           // Don't call onFile if the component unmounted during recording
           if (!isMountedRef.current || !audioChunksRef.current.length) return;
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
-          const ext = mimeType.includes('webm') ? 'webm' : 'ogg';
-          onFileRef.current(new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType }));
+          const effectiveMime = mimeType || 'audio/mpeg';
+          const blob = new Blob(audioChunksRef.current, { type: effectiveMime });
+          const ext = effectiveMime.includes('webm') ? 'webm'
+            : effectiveMime.includes('mp4') ? 'm4a'
+            : effectiveMime.includes('ogg') ? 'ogg'
+            : 'audio';
+          onFileRef.current(new File([blob], `voice-${Date.now()}.${ext}`, { type: effectiveMime }));
         };
 
         recorder.start();

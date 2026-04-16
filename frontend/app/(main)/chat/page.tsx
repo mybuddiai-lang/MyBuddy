@@ -76,12 +76,9 @@ export default function ChatPage() {
     }
   }, [messages, isTyping]);
 
-  // Revoke blob URL on cleanup to avoid memory leaks
-  useEffect(() => {
-    return () => {
-      if (pendingAttachment?.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
-    };
-  }, [pendingAttachment]);
+  // NOTE: blob previewUrls are only revoked when the user explicitly cancels the
+  // attachment (via the X button). We intentionally do NOT revoke on send so the
+  // MessageBubble can keep showing the local image while the remote URL loads.
 
   const displayMessages = messages.length > 0 ? messages : (showDemo ? DEMO_MESSAGES : []);
 

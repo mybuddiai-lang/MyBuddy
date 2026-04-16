@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -37,32 +38,70 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// ─── Image lightbox ───────────────────────────────────────────────────────────
+
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+      >
+        <X size={20} className="text-white" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Full size"
+        className="max-w-full max-h-full object-contain rounded-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Attachment preview ───────────────────────────────────────────────────────
 
 function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE' | 'VOICE' }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
 
   if (!url) return null;
 
   if (type === 'IMAGE' && !imgError) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-        <div className={`relative rounded-xl overflow-hidden bg-zinc-100 ${imgLoaded ? '' : 'min-h-[120px]'}`}>
-          <img
-            src={url}
-            alt="attachment"
-            className={`max-w-[240px] w-full object-cover rounded-xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-          {!imgLoaded && (
-            <div className="w-[240px] h-[140px] flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-        </div>
-      </a>
+      <>
+        <button onClick={() => setLightbox(true)} className="block mt-2 text-left focus:outline-none">
+          <div className={`relative rounded-xl overflow-hidden bg-zinc-100 ${imgLoaded ? '' : 'min-h-[120px]'}`}>
+            <img
+              src={url}
+              alt="attachment"
+              className={`max-w-[240px] w-full object-cover rounded-xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+            />
+            {!imgLoaded && (
+              <div className="w-[240px] h-[140px] flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {imgLoaded && (
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition rounded-xl flex items-center justify-center">
+                <span className="opacity-0 hover:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded-lg transition">
+                  View full
+                </span>
+              </div>
+            )}
+          </div>
+        </button>
+        {lightbox && <ImageLightbox src={url} onClose={() => setLightbox(false)} />}
+      </>
     );
   }
 

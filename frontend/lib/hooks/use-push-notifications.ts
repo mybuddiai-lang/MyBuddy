@@ -28,6 +28,20 @@ export function usePushNotifications() {
     setState('loading');
     setError(null);
     try {
+      // Explicitly request notification permission before attempting to subscribe.
+      // Without this, pushManager.subscribe() silently fails on some browsers when
+      // the permission is 'default' (not yet asked).
+      const permission = await Notification.requestPermission();
+      if (permission === 'denied') {
+        setState('denied');
+        setError('Notification permission was denied. Enable it in browser settings.');
+        return;
+      }
+      if (permission !== 'granted') {
+        setState('unsubscribed');
+        return;
+      }
+
       const publicKey = await usersApi.getVapidPublicKey();
       if (!publicKey) throw new Error('Push not configured on server');
 
