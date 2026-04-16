@@ -36,6 +36,18 @@ export class FilesController {
     return this.filesService.uploadAttachment(userId, file);
   }
 
+  @Post('transcribe')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))
+  async transcribe(
+    @CurrentUser('id') _userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No audio file received');
+    const text = await this.filesService.transcribeAudio(file);
+    return { text };
+  }
+
   @Get()
   findAll(@CurrentUser('id') userId: string) {
     return this.filesService.findAll(userId);

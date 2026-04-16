@@ -15,7 +15,7 @@ export const chatApi = {
     const { data } = await apiClient.post('/chat/message', payload);
     return data.data;
   },
-  async getHistory(page = 1, limit = 30): Promise<{ messages: ChatMessage[]; total: number }> {
+  async getHistory(page = 1, limit = 30): Promise<{ messages: ChatMessage[]; total: number; pages: number; hasMore: boolean }> {
     const { data } = await apiClient.get('/chat/history', { params: { page, limit } });
     return data.data;
   },

@@ -51,7 +51,7 @@ interface PendingAttachment {
 }
 
 export default function ChatPage() {
-  const { messages, isTyping, isLoadingHistory, sendMessage, loadHistory } = useChatStore();
+  const { messages, isTyping, isLoadingHistory, currentPage, totalPages, sendMessage, loadHistory, loadOlderMessages } = useChatStore();
   const { user } = useAuthStore();
   const { notes } = useSlides();
   const [input, setInput] = useState('');
@@ -149,7 +149,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Upload recorded voice file and set as pending attachment
+  // Transcribe recorded voice and populate the text input so Buddi can respond
   const handleVoiceFile = useCallback(async (file: File) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
     if (!token) return;
@@ -157,17 +157,27 @@ export default function ChatPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/backend/files/upload-attachment', {
+      const res = await fetch('/api/backend/files/transcribe', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) throw new Error('Transcription failed');
       const json = await res.json();
-      const { url } = json.data ?? json;
-      setPendingAttachment({ url, type: 'VOICE', name: file.name });
+      const text: string = json.data?.text ?? json.text ?? '';
+      if (text.trim()) {
+        setInput(text.trim());
+        // Resize textarea to fit the transcription
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+        }
+        textareaRef.current?.focus();
+      } else {
+        toast.error("Couldn't understand the audio. Please try again.");
+      }
     } catch {
-      toast.error('Failed to upload voice note. Please try again.');
+      toast.error('Voice transcription failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -204,7 +214,7 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
-        {isLoadingHistory ? (
+        {isLoadingHistory && messages.length === 0 ? (
           <div className="flex flex-col gap-4 pt-4">
             {[1, 2, 3].map(i => (
               <div key={i} className={`flex gap-2 ${i % 2 === 0 ? 'justify-end' : ''}`}>
@@ -236,6 +246,23 @@ export default function ChatPage() {
           </div>
         ) : (
           <>
+            {/* Load older messages — only show when there are more pages and we have real history */}
+            {!showDemo && currentPage < totalPages && (
+              <div className="flex justify-center mb-3">
+                <button
+                  onClick={loadOlderMessages}
+                  disabled={isLoadingHistory}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 hover:text-brand-500 dark:hover:text-brand-400 transition disabled:opacity-40"
+                >
+                  {isLoadingHistory
+                    ? <div className="w-3 h-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                    : <span className="text-[10px]">↑</span>
+                  }
+                  Load older messages
+                </button>
+              </div>
+            )}
+
             {showDemo && (
               <div className="flex items-center gap-2 mb-3 px-2">
                 <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800" />

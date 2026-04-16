@@ -214,6 +214,10 @@ export class FilesService {
     }
   }
 
+  async transcribeAudio(file: Express.Multer.File): Promise<string> {
+    return this.aiService.transcribeAudio(file);
+  }
+
   // Lightweight upload for community post/reply attachments — no Note record, no AI processing
   async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
     const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;

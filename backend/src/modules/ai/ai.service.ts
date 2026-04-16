@@ -173,6 +173,50 @@ JSON:`;
     }
   }
 
+  /**
+   * Scans a chat exchange for explicit or implicit study/action commitments
+   * (e.g. "I'll review cardiology tonight") and returns structured reminders.
+   * Returns an empty array when nothing actionable is detected — keeps the
+   * background task cheap and non-intrusive.
+   */
+  async extractActionItems(
+    userMessage: string,
+    aiResponse: string,
+  ): Promise<Array<{ title: string; description: string; delayHours: number }>> {
+    const prompt = `You are scanning a student chat exchange for study commitments or personal action items — things the student explicitly or implicitly agreed to do.
+
+User: "${userMessage.slice(0, 300)}"
+Buddi: "${aiResponse.slice(0, 300)}"
+
+Rules:
+- Only include items the STUDENT committed to (not suggestions from Buddi).
+- Must have a clear time hint ("tonight", "tomorrow", "in 2 hours", "by Friday", etc.).
+- Max 2 items. If nothing qualifies, return an empty array.
+
+Return ONLY a valid JSON array:
+[{"title":"...","description":"...","delayHours": <number>}]
+
+Where delayHours is the approximate hours from now (tonight≈8, tomorrow≈24, in 2 hours≈2, this weekend≈48, next week≈168).
+
+JSON:`;
+    try {
+      const result = await this.openai.complete(prompt, 200);
+      const match = result.match(/\[[\s\S]*\]/);
+      if (!match) return [];
+      const items = JSON.parse(match[0]);
+      if (!Array.isArray(items)) return [];
+      return items.filter(
+        (i: any) => typeof i.title === 'string' && typeof i.delayHours === 'number' && i.delayHours > 0,
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  async transcribeAudio(file: Express.Multer.File): Promise<string> {
+    return this.openai.transcribe(file.buffer, file.mimetype, file.originalname);
+  }
+
   private buildPersonalizedPrompt(ctx?: { name?: string; school?: string; department?: string; examDate?: Date }): string {
     let prompt = BUDDI_SYSTEM_PROMPT;
     if (ctx?.name) prompt += `\n\nStudent's name: ${ctx.name}`;

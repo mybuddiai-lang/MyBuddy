@@ -97,6 +97,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachType, setAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
   const [attachPreviewUrl, setAttachPreviewUrl] = useState<string | null>(null);
+  const [fileAccept, setFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -126,11 +127,10 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   }, [communityId, postId]);
 
   const handleAttach = (type: 'FILE' | 'IMAGE' | 'VOICE') => {
+    const accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
     setAttachType(type);
-    if (fileRef.current) {
-      fileRef.current.accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
-      fileRef.current.click();
-    }
+    setFileAccept(accept);
+    requestAnimationFrame(() => fileRef.current?.click());
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,7 +301,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         </div>
       </div>
 
-      <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
+      <input ref={fileRef} type="file" accept={fileAccept} className="hidden" onChange={handleFileChange} />
     </div>
   );
 }
@@ -605,6 +605,8 @@ export default function PodDetailPage() {
   const [postAttachFile, setPostAttachFile] = useState<File | null>(null);
   const [postAttachType, setPostAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
   const [postAttachPreviewUrl, setPostAttachPreviewUrl] = useState<string | null>(null);
+  // React-controlled accept so the file picker filters correctly on iOS Safari
+  const [postFileAccept, setPostFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
   const [pollLoadError, setPollLoadError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -612,6 +614,7 @@ export default function PodDetailPage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const postFileRef = useRef<HTMLInputElement>(null);
+  const postTextareaRef = useRef<HTMLTextAreaElement>(null);
   // true = user is at (or near) the bottom → auto-scroll new messages into view
   const isAtBottom = useRef(true);
 
@@ -793,6 +796,7 @@ export default function PodDetailPage() {
     isAtBottom.current = true;
     setPosts(prev => [...prev, optimistic]);
     setNewPost('');
+    if (postTextareaRef.current) postTextareaRef.current.style.height = '24px';
     setPostAttachFile(null);
     setPostAttachType(null);
     if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
@@ -830,11 +834,12 @@ export default function PodDetailPage() {
   };
 
   const handlePostAttach = (type: 'FILE' | 'IMAGE' | 'VOICE') => {
+    const accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
     setPostAttachType(type);
-    if (postFileRef.current) {
-      postFileRef.current.accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
-      postFileRef.current.click();
-    }
+    setPostFileAccept(accept);
+    // requestAnimationFrame gives React a render cycle to update the accept
+    // attribute before the file picker opens — fixes iOS Safari filtering.
+    requestAnimationFrame(() => postFileRef.current?.click());
   };
 
   const handleVote = async (pollId: string, optionId: string) => {
@@ -1187,13 +1192,19 @@ export default function PodDetailPage() {
               </div>
             ) : (
               <textarea
+                ref={postTextareaRef}
                 value={newPost}
-                onChange={e => setNewPost(e.target.value)}
+                onChange={e => {
+                  setNewPost(e.target.value);
+                  const ta = e.target;
+                  ta.style.height = 'auto';
+                  ta.style.height = Math.min(ta.scrollHeight, 80) + 'px';
+                }}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
                 placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
-                style={{ height: '24px' }}
+                style={{ minHeight: '24px', maxHeight: '80px' }}
               />
             )}
             <div className="flex items-center gap-1 shrink-0">
@@ -1225,6 +1236,7 @@ export default function PodDetailPage() {
           <input
             ref={postFileRef}
             type="file"
+            accept={postFileAccept}
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0];

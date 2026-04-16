@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 
 @Injectable()
 export class OpenAIProvider {
@@ -33,5 +33,14 @@ export class OpenAIProvider {
       max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content ?? '';
+  }
+
+  async transcribe(buffer: Buffer, mimeType: string, filename: string): Promise<string> {
+    const file = await toFile(buffer, filename, { type: mimeType });
+    const response = await this.client.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+    });
+    return response.text;
   }
 }

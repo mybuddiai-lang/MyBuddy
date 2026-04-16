@@ -14,8 +14,11 @@ interface ChatState {
   isTyping: boolean;
   isLoadingHistory: boolean;
   historyLoaded: boolean;
+  currentPage: number;
+  totalPages: number;
   sendMessage: (payload: SendPayload) => Promise<void>;
   loadHistory: () => Promise<void>;
+  loadOlderMessages: () => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -24,6 +27,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isTyping: false,
   isLoadingHistory: false,
   historyLoaded: false,
+  currentPage: 1,
+  totalPages: 1,
 
   sendMessage: async ({ content, attachmentUrl, attachmentType, previewUrl }) => {
     const userMsg: Message = {
@@ -69,8 +74,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (historyLoaded && messages.length > 0) return;
     set({ isLoadingHistory: true });
     try {
-      const { messages: fetched } = await chatApi.getHistory();
-      const parsed: Message[] = fetched.map(m => ({
+      const result = await chatApi.getHistory(1, 30);
+      const parsed: Message[] = result.messages.map(m => ({
         id: m.id,
         role: m.role,
         content: m.content,
@@ -79,7 +84,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         attachmentType: m.attachmentType,
         createdAt: new Date(m.createdAt),
       }));
-      set({ messages: parsed, historyLoaded: true });
+      set({
+        messages: parsed,
+        historyLoaded: true,
+        currentPage: 1,
+        totalPages: result.pages ?? 1,
+      });
     } catch {
       set({ historyLoaded: true });
     } finally {
@@ -87,5 +97,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clearMessages: () => set({ messages: [], historyLoaded: false }),
+  loadOlderMessages: async () => {
+    const { currentPage, totalPages, isLoadingHistory } = get();
+    if (isLoadingHistory || currentPage >= totalPages) return;
+    const nextPage = currentPage + 1;
+    set({ isLoadingHistory: true });
+    try {
+      const result = await chatApi.getHistory(nextPage, 30);
+      const older: Message[] = result.messages.map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        sentimentScore: m.sentimentScore,
+        attachmentUrl: m.attachmentUrl,
+        attachmentType: m.attachmentType,
+        createdAt: new Date(m.createdAt),
+      }));
+      // Prepend older messages, dedup by id
+      set((state) => {
+        const existingIds = new Set(state.messages.map(m => m.id));
+        const unique = older.filter(m => !existingIds.has(m.id));
+        return {
+          messages: [...unique, ...state.messages],
+          currentPage: nextPage,
+        };
+      });
+    } catch { /* silent */ } finally {
+      set({ isLoadingHistory: false });
+    }
+  },
+
+  clearMessages: () => set({ messages: [], historyLoaded: false, currentPage: 1, totalPages: 1 }),
 }));

@@ -109,24 +109,50 @@ export class ChatService {
         this.logger.warn('Background sentiment update failed (non-critical)', err);
       }
     })();
+
+    // Detect action items / study commitments and auto-schedule reminders — independent
+    (async () => {
+      try {
+        const items = await this.aiService.extractActionItems(userContent, aiContent);
+        for (const item of items) {
+          const scheduledFor = new Date(Date.now() + item.delayHours * 60 * 60 * 1000);
+          await this.prisma.reminder.create({
+            data: {
+              userId,
+              title: item.title,
+              description: item.description,
+              scheduledFor,
+              type: 'STUDY',
+            },
+          });
+          this.logger.debug(`Auto-reminder created for user ${userId}: "${item.title}" in ${item.delayHours}h`);
+        }
+      } catch (err) {
+        this.logger.warn('Action item extraction failed (non-critical)', err);
+      }
+    })();
   }
 
   async getHistory(userId: string, pagination: PaginationDto) {
     const { page = 1, limit = 30 } = pagination;
+    // skip from the newest end so page 1 = most recent 30, page 2 = 31-60, etc.
     const skip = (page - 1) * limit;
 
     const [messages, total] = await Promise.all([
       this.prisma.chatMessage.findMany({
         where: { userId },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' }, // newest first
         skip,
         take: limit,
       }),
       this.prisma.chatMessage.count({ where: { userId } }),
     ]);
 
+    // Reverse so messages are returned in chronological (oldest-first) order for display
+    const sorted = [...messages].reverse();
+
     return {
-      messages: messages.map(m => {
+      messages: sorted.map(m => {
         const meta = m.metadata as { attachmentUrl?: string; attachmentType?: string } | null;
         return {
           id: m.id,
@@ -141,6 +167,7 @@ export class ChatService {
       total,
       page,
       pages: Math.ceil(total / limit),
+      hasMore: total > skip + limit, // there are older messages to load
     };
   }
 
