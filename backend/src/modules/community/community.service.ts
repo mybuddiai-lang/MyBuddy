@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { PushService } from '../notifications/push.service';
@@ -7,8 +7,8 @@ import { PushService } from '../notifications/push.service';
 export class CommunityService {
   constructor(
     private prisma: PrismaService,
-    @Optional() private gateway?: NotificationsGateway,
-    @Optional() private push?: PushService,
+    private gateway: NotificationsGateway,
+    private push: PushService,
   ) {}
 
   private mapCommunity(c: any, myRole?: string | null) {
@@ -60,7 +60,7 @@ export class CommunityService {
     // handled by the API response (optimistic update). Sending to the creator
     // would cause a duplicate. Other users receive myRole:null because they
     // are not members — they should see it in "Discover", not "My Pods".
-    this.gateway?.broadcastExcept(`user:${userId}`, 'community:new', this.mapCommunity(community, null));
+    this.gateway.broadcastExcept(`user:${userId}`, 'community:new', this.mapCommunity(community, null));
     return result;
   }
 
@@ -204,8 +204,8 @@ export class CommunityService {
         if (!comm) return;
         const communityName = comm.name;
         const communityId = request.communityId;
-        this.gateway?.notifyUser(request.userId, 'community:join_approved', { communityId, communityName });
-        this.push?.sendToUser(request.userId, {
+        this.gateway.notifyUser(request.userId, 'community:join_approved', { communityId, communityName });
+        this.push.sendToUser(request.userId, {
           title: 'Join request approved!',
           body: `You can now post in ${communityName}`,
           url: `/community/${communityId}`,
@@ -254,7 +254,7 @@ export class CommunityService {
       data: { communityId, authorId: userId, content, attachmentUrl, attachmentType: attachmentType as any },
       include: { author: { select: { id: true, name: true } } },
     });
-    this.gateway?.broadcastToCommunity(communityId, 'community:new_post', post);
+    this.gateway.broadcastToCommunity(communityId, 'community:new_post', post);
 
     // Push to community members not currently in the WS room — non-blocking
     this.pushNewPostToMembers(communityId, userId, post.author?.name ?? 'Someone', content, community.name).catch(() => {});
@@ -280,7 +280,7 @@ export class CommunityService {
     if (!canDelete) throw new ForbiddenException('Not authorized to delete this post');
 
     await this.prisma.communityPost.delete({ where: { id: postId } });
-    this.gateway?.broadcastToCommunity(communityId, 'community:delete_post', { postId });
+    this.gateway.broadcastToCommunity(communityId, 'community:delete_post', { postId });
     return { deleted: true };
   }
 
@@ -339,7 +339,7 @@ export class CommunityService {
       this.prisma.communityPost.update({ where: { id: postId }, data: { repliesCount: { increment: 1 } } }),
     ]);
 
-    this.gateway?.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
+    this.gateway.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
     return reply;
   }
 
@@ -372,7 +372,7 @@ export class CommunityService {
       this.prisma.communityPost.update({ where: { id: reply.postId }, data: { repliesCount: { decrement: 1 } } }),
     ]);
 
-    this.gateway?.broadcastToCommunity(
+    this.gateway.broadcastToCommunity(
       reply.post.communityId,
       'community:delete_reply',
       { postId: reply.postId, replyId },
@@ -413,8 +413,8 @@ export class CommunityService {
     const memberName = newUser?.name ?? 'Someone';
     const data = { communityId, communityName, userId: newUserId, userName: memberName };
     for (const admin of admins) {
-      this.gateway?.notifyUser(admin.userId, 'community:member_joined', data);
-      this.push?.sendToUser(admin.userId, {
+      this.gateway.notifyUser(admin.userId, 'community:member_joined', data);
+      this.push.sendToUser(admin.userId, {
         title: communityName,
         body: `${memberName} just joined your community`,
         url: `/community/${communityId}`,
@@ -431,7 +431,7 @@ export class CommunityService {
     const body = content.length > 80 ? content.slice(0, 77) + '...' : content;
     for (const member of members) {
       if (member.userId === authorId) continue;
-      this.push?.sendToUser(member.userId, {
+      this.push.sendToUser(member.userId, {
         title: `${communityName} — new post`,
         body: `${authorName}: ${body}`,
         url: `/community/${communityId}`,
@@ -511,7 +511,7 @@ export class CommunityService {
         options: true,
       },
     });
-    this.gateway?.broadcastToCommunity(communityId, 'community:new_poll', poll);
+    this.gateway.broadcastToCommunity(communityId, 'community:new_poll', poll);
     return poll;
   }
 
@@ -541,7 +541,7 @@ export class CommunityService {
 
     // Broadcast updated poll to community room
     const updatedPoll = await this.getPolls(poll.communityId, userId).then(polls => polls.find(p => p.id === pollId));
-    if (updatedPoll) this.gateway?.broadcastToCommunity(poll.communityId, 'community:poll_update', updatedPoll);
+    if (updatedPoll) this.gateway.broadcastToCommunity(poll.communityId, 'community:poll_update', updatedPoll);
 
     return { voted: true, optionId };
   }

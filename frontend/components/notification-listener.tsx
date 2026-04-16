@@ -29,7 +29,7 @@ export function NotificationListener() {
   useGlobalSocket({
     onReminderDue: (data) => {
       const title = data.noteTitle ?? data.title ?? 'Study Reminder';
-      const body = data.body ?? 'Time to review your notes!';
+      const body = data.description ?? 'Time to review your notes!';
       toast.custom(
         () => (
           <NotificationToast

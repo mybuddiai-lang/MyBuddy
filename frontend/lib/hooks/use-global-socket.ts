@@ -6,7 +6,7 @@ import { io, Socket } from 'socket.io-client';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 interface GlobalSocketHandlers {
-  onReminderDue?: (reminder: { title?: string; body?: string; noteTitle?: string }) => void;
+  onReminderDue?: (reminder: { title?: string; description?: string; noteTitle?: string; type?: string; scheduledFor?: string }) => void;
   onMemberJoined?: (data: { communityId: string; communityName: string; userName: string }) => void;
   onJoinApproved?: (data: { communityId: string; communityName: string }) => void;
 }
@@ -36,15 +36,15 @@ export function useGlobalSocket(handlers: GlobalSocketHandlers) {
     socketRef.current = socket;
 
     socket.on('reminder:due', (data: any) => {
-      handlersRef.current.onReminderDue?.(data);
+      try { handlersRef.current.onReminderDue?.(data); } catch { /* never crash the socket */ }
     });
 
     socket.on('community:member_joined', (data: any) => {
-      handlersRef.current.onMemberJoined?.(data);
+      try { handlersRef.current.onMemberJoined?.(data); } catch { /* never crash the socket */ }
     });
 
     socket.on('community:join_approved', (data: any) => {
-      handlersRef.current.onJoinApproved?.(data);
+      try { handlersRef.current.onJoinApproved?.(data); } catch { /* never crash the socket */ }
     });
 
     return () => {

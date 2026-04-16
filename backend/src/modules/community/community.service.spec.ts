@@ -2,10 +2,24 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CommunityService } from './community.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { PushService } from '../notifications/push.service';
 
 // ---------------------------------------------------------------------------
 // Minimal Prisma mock factory
 // ---------------------------------------------------------------------------
+function makeGatewayMock() {
+  return {
+    broadcastToCommunity: jest.fn(),
+    notifyUser: jest.fn(),
+    broadcastExcept: jest.fn(),
+  };
+}
+
+function makePushMock() {
+  return { sendToUser: jest.fn().mockResolvedValue(undefined) };
+}
+
 function makePrismaMock() {
   return {
     community: {
@@ -60,6 +74,8 @@ describe('CommunityService', () => {
       providers: [
         CommunityService,
         { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsGateway, useValue: makeGatewayMock() },
+        { provide: PushService, useValue: makePushMock() },
       ],
     }).compile();
 
