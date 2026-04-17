@@ -340,6 +340,7 @@ export default function ChatPage() {
                   src={pendingAttachment.previewUrl}
                   alt={pendingAttachment.name}
                   className="h-16 w-16 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm"
+                  onError={e => { (e.currentTarget as HTMLImageElement).src = pendingAttachment.url; }}
                 />
                 <button
                   onClick={() => {

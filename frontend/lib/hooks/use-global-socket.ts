@@ -9,6 +9,7 @@ interface GlobalSocketHandlers {
   onReminderDue?: (reminder: { title?: string; description?: string; noteTitle?: string; type?: string; scheduledFor?: string }) => void;
   onMemberJoined?: (data: { communityId: string; communityName: string; userName: string }) => void;
   onJoinApproved?: (data: { communityId: string; communityName: string }) => void;
+  onReplyOnPost?: (data: { communityId: string; postId: string; communityName: string; replyerName: string; content: string }) => void;
 }
 
 export function useGlobalSocket(handlers: GlobalSocketHandlers) {
@@ -45,6 +46,10 @@ export function useGlobalSocket(handlers: GlobalSocketHandlers) {
 
     socket.on('community:join_approved', (data: any) => {
       try { handlersRef.current.onJoinApproved?.(data); } catch { /* never crash the socket */ }
+    });
+
+    socket.on('community:reply_on_post', (data: any) => {
+      try { handlersRef.current.onReplyOnPost?.(data); } catch { /* never crash the socket */ }
     });
 
     return () => {

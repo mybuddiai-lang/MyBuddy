@@ -28,6 +28,8 @@ export interface CommunityPost {
   author: { id: string; name: string };
   attachmentUrl?: string;
   attachmentType?: 'FILE' | 'IMAGE' | 'VOICE';
+  /** Local blob URL — only populated for optimistic posts in the current session */
+  previewUrl?: string;
   likesCount: number;
   commentsCount: number;
   repliesCount: number;
@@ -42,6 +44,8 @@ export interface CommunityPostReply {
   content: string;
   attachmentUrl?: string;
   attachmentType?: 'FILE' | 'IMAGE' | 'VOICE';
+  /** Local blob URL — only populated for optimistic replies in the current session */
+  previewUrl?: string;
   createdAt: string;
 }
 

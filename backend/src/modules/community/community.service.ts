@@ -321,8 +321,11 @@ export class CommunityService {
   }
 
   async createReply(postId: string, authorId: string, content: string, attachmentUrl?: string, attachmentType?: string) {
-    // Verify post exists first so we have the communityId for membership check
-    const post = await this.prisma.communityPost.findUnique({ where: { id: postId }, select: { communityId: true } });
+    // Verify post exists first so we have the communityId and authorId for notifications
+    const post = await this.prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { communityId: true, authorId: true },
+    });
     if (!post) throw new NotFoundException('Post not found');
 
     // Verify the user is a member of the community this post belongs to
@@ -340,6 +343,15 @@ export class CommunityService {
     ]);
 
     this.gateway.broadcastToCommunity(post.communityId, 'community:new_reply', { postId, reply });
+
+    // Notify the post author when someone else replies to their post — non-blocking
+    if (post.authorId !== authorId) {
+      this.notifyPostAuthorOfReply(
+        post.communityId, postId, post.authorId,
+        (reply as any).author?.name ?? 'Someone', content,
+      ).catch(() => {});
+    }
+
     return reply;
   }
 
@@ -421,6 +433,38 @@ export class CommunityService {
         tag: `member-joined-${communityId}`,
       }).catch(() => {});
     }
+  }
+
+  private async notifyPostAuthorOfReply(
+    communityId: string,
+    postId: string,
+    postAuthorId: string,
+    replyerName: string,
+    content: string,
+  ) {
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+      select: { name: true },
+    });
+    const communityName = community?.name ?? 'Community';
+    const preview = content.length > 80 ? content.slice(0, 77) + '...' : content;
+
+    // Real-time WS (if the author is online)
+    this.gateway.notifyUser(postAuthorId, 'community:reply_on_post', {
+      communityId,
+      postId,
+      communityName,
+      replyerName,
+      content: preview,
+    });
+
+    // Push (when app is in background / closed)
+    await this.push.sendToUser(postAuthorId, {
+      title: `${replyerName} replied to your post`,
+      body: preview,
+      url: `/community/${communityId}`,
+      tag: `reply-${postId}`,
+    });
   }
 
   private async pushNewPostToMembers(communityId: string, authorId: string, authorName: string, content: string, communityName: string) {

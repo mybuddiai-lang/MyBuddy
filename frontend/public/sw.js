@@ -94,14 +94,27 @@ self.addEventListener('fetch', (event) => {
 // Push notifications
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  const data = event.data.json();
+  let data;
+  try { data = event.data.json(); } catch { return; }
+
+  // Determine vibration pattern and persistence based on notification type
+  const tag = data.tag || 'buddi-general';
+  const isMessage = tag.startsWith('reply-') || tag.startsWith('community-post-');
+  const isCritical = tag.startsWith('reminder-') || tag.startsWith('join-approved-');
+
   event.waitUntil(
     self.registration.showNotification(data.title || 'Buddi', {
-      body: data.body || 'Time to review! 📚',
+      body: data.body || 'You have a new notification',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: data.tag || 'buddi-reminder',
-      data: { url: data.url || '/recall' },
+      tag,
+      // Keep message notifications visible until user acts on them (WhatsApp-style)
+      requireInteraction: isMessage || isCritical,
+      // Vibration: short-short-long for messages, single pulse for others
+      vibrate: isMessage ? [100, 50, 100, 50, 300] : [150],
+      // Reuse existing notification with same tag (prevents spam)
+      renotify: true,
+      data: { url: data.url || '/' },
     })
   );
 });

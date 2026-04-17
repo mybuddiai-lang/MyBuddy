@@ -39,7 +39,10 @@ export class FilesService {
   }
 
   async upload(userId: string, file: Express.Multer.File, title?: string) {
-    const key = `uploads/${userId}/${uuidv4()}-${file.originalname}`;
+    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = file.originalname.replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 60);
+    const key = `uploads/${userId}/${uuidv4()}-${base}.${ext}`;
     const fileType = this.detectFileType(file.mimetype, file.originalname);
 
     // Upload to Cloudflare R2
@@ -51,10 +54,9 @@ export class FilesService {
         Body: file.buffer,
         ContentType: file.mimetype,
       }));
-      fileUrl = `${this.publicUrl}/${key}`;
+      fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
     } catch (err) {
       this.logger.warn('R2 upload failed, using local path', err);
-      // Use the same unique key to avoid filename collisions across users
       fileUrl = `/uploads/${key}`;
     }
 
@@ -220,8 +222,25 @@ export class FilesService {
 
   // Lightweight upload for community post/reply attachments — no Note record, no AI processing
   async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
-    const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;
-    let url = '';
+    // Sanitize filename: keep only alphanumeric, dots, dashes, underscores.
+    // Special characters (spaces, unicode, parens…) break the R2 URL when
+    // inserted into the object key without encoding.
+    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = file.originalname.replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60);
+    const safeName = `${base}.${ext}`;
+    const key = `attachments/${userId}/${uuidv4()}-${safeName}`;
+
+    if (!this.publicUrl) {
+      this.logger.error(
+        'CLOUDFLARE_R2_PUBLIC_URL is not configured — attachment uploads will fail. ' +
+        'Set this env var to the public base URL of your R2 bucket (e.g. https://pub-xxx.r2.dev).',
+      );
+      throw new Error('File storage is not configured. Please contact support.');
+    }
+
     try {
       await this.s3.send(new PutObjectCommand({
         Bucket: this.bucket,
@@ -229,11 +248,17 @@ export class FilesService {
         Body: file.buffer,
         ContentType: file.mimetype,
       }));
-      url = `${this.publicUrl}/${key}`;
     } catch (err) {
-      this.logger.warn('R2 attachment upload failed', err);
-      url = `/uploads/${key}`;
+      // R2 upload failed — do NOT store a broken fallback URL in the database.
+      // The client will receive a 500 and show an appropriate error toast.
+      this.logger.error('R2 attachment upload failed', err);
+      throw new Error('File upload failed. Please try again.');
     }
+
+    // Normalise publicUrl: strip any trailing slash so we never get double-slashes.
+    const base_url = this.publicUrl.replace(/\/+$/, '');
+    const url = `${base_url}/${key}`;
+
     // AttachmentType only has FILE | IMAGE | VOICE — 'TEXT' (from detectFileType's
     // default) is not valid here. Map anything that isn't IMAGE or VOICE to FILE.
     const detected = this.detectFileType(file.mimetype, file.originalname);

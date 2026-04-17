@@ -66,27 +66,47 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 }
 
 // ─── Attachment preview ───────────────────────────────────────────────────────
+// Mirrors the fallback pattern in message-bubble.tsx:
+//   1. Try previewUrl (local blob — immediate display, current session only)
+//   2. On error, switch to remote url (R2 CDN)
+//   3. If remote also fails → show "unavailable" chip
 
-function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE' | 'VOICE' }) {
+function AttachmentPreview({ url, previewUrl, type }: {
+  url: string;
+  previewUrl?: string;
+  type?: 'FILE' | 'IMAGE' | 'VOICE';
+}) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
   const [lightbox, setLightbox] = useState(false);
 
-  if (!url) return null;
+  if (!url && !previewUrl) return null;
+
+  const imgSrc = (!useFallback && previewUrl) ? previewUrl : url;
 
   if (type === 'IMAGE' && !imgError) {
     return (
       <>
         <button onClick={() => setLightbox(true)} className="block mt-2 text-left focus:outline-none">
           <div className={`relative rounded-xl overflow-hidden bg-zinc-100 ${imgLoaded ? '' : 'min-h-[120px]'}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={url}
+              src={imgSrc}
               alt="attachment"
               className={`max-w-[240px] w-full object-cover rounded-xl transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
               onLoad={() => setImgLoaded(true)}
-              onError={() => setImgError(true)}
+              onError={() => {
+                if (!useFallback && previewUrl) {
+                  // Blob URL failed (e.g. page reloaded) — switch to remote URL
+                  setUseFallback(true);
+                  setImgLoaded(false);
+                } else {
+                  setImgError(true);
+                }
+              }}
             />
-            {!imgLoaded && (
+            {!imgLoaded && !imgError && (
               <div className="w-[240px] h-[140px] flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-zinc-300 border-t-transparent rounded-full animate-spin" />
               </div>
@@ -100,7 +120,7 @@ function AttachmentPreview({ url, type }: { url: string; type?: 'FILE' | 'IMAGE'
             )}
           </div>
         </button>
-        {lightbox && <ImageLightbox src={url} onClose={() => setLightbox(false)} />}
+        {lightbox && <ImageLightbox src={url || previewUrl!} onClose={() => setLightbox(false)} />}
       </>
     );
   }
@@ -136,6 +156,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachType, setAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
   const [attachPreviewUrl, setAttachPreviewUrl] = useState<string | null>(null);
+  const [attachPreviewError, setAttachPreviewError] = useState(false);
   const [fileAccept, setFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,11 +172,6 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     try { await toggleRecording(); }
     catch { toast.error('Could not access microphone. Please check permissions.'); }
   };
-
-  // Revoke blob preview URL on cleanup
-  useEffect(() => {
-    return () => { if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl); };
-  }, [attachPreviewUrl]);
 
   useEffect(() => {
     setLoadError(false);
@@ -176,6 +192,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     const file = e.target.files?.[0];
     if (file) {
       setAttachFile(file);
+      setAttachPreviewError(false);
       if (file.type.startsWith('image/')) {
         if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
         setAttachPreviewUrl(URL.createObjectURL(file));
@@ -211,16 +228,19 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       authorId: userId,
       author: { id: userId, name: 'You' },
       content: replyText.trim(),
-      // Only include attachment URL when it was successfully uploaded
       attachmentUrl: resolvedUrl,
       attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
+      // Show blob URL immediately for the replier; falls back to remote URL for others
+      previewUrl: resolvedType === 'IMAGE' ? attachPreviewUrl ?? undefined : undefined,
       createdAt: new Date().toISOString(),
     };
     setReplies(prev => [...prev, optimistic]);
     setReplyText('');
     setAttachFile(null);
     setAttachType(null);
-    if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
+    // Do NOT revoke the blob URL here — the optimistic reply still holds a reference
+    // to previewUrl and needs it to display the image. It will be replaced by the
+    // remote R2 URL once the server confirms the reply.
     setAttachPreviewUrl(null);
 
     try {
@@ -262,8 +282,12 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
               <span className="text-[10px] text-zinc-400">{relativeTime(reply.createdAt)}</span>
             </div>
             <p className="text-xs text-zinc-600 leading-relaxed mt-0.5">{reply.content}</p>
-            {reply.attachmentUrl && (
-              <AttachmentPreview url={reply.attachmentUrl} type={reply.attachmentType} />
+            {(reply.attachmentUrl || reply.previewUrl) && (
+              <AttachmentPreview
+                url={reply.attachmentUrl ?? ''}
+                previewUrl={reply.previewUrl}
+                type={reply.attachmentType}
+              />
             )}
           </div>
         </div>
@@ -272,8 +296,10 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       {/* Pending attachment preview */}
       {attachFile && (
         <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
-          {attachPreviewUrl ? (
-            <img src={attachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+          {attachPreviewUrl && !attachPreviewError ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={attachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0"
+              onError={() => setAttachPreviewError(true)} />
           ) : (
             <Paperclip size={11} className="text-zinc-400 shrink-0" />
           )}
@@ -644,6 +670,7 @@ export default function PodDetailPage() {
   const [postAttachFile, setPostAttachFile] = useState<File | null>(null);
   const [postAttachType, setPostAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
   const [postAttachPreviewUrl, setPostAttachPreviewUrl] = useState<string | null>(null);
+  const [postAttachPreviewError, setPostAttachPreviewError] = useState(false);
   // React-controlled accept so the file picker filters correctly on iOS Safari
   const [postFileAccept, setPostFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
@@ -820,11 +847,11 @@ export default function PodDetailPage() {
       authorId: user?.id || '',
       author: { id: user?.id || '', name: user?.name || 'You' },
       content,
-      // Only include attachment if it was successfully uploaded — never use a
-      // local blob URL, which is meaningless to other members and misleading
-      // when the upload actually failed.
       attachmentUrl: resolvedUrl,
       attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
+      // Pass the blob previewUrl so the image renders instantly for the poster
+      // while the remote URL loads. Other members always receive the remote URL.
+      previewUrl: resolvedType === 'IMAGE' ? postAttachPreviewUrl ?? undefined : undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
@@ -838,7 +865,8 @@ export default function PodDetailPage() {
     if (postTextareaRef.current) postTextareaRef.current.style.height = '24px';
     setPostAttachFile(null);
     setPostAttachType(null);
-    if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
+    // Do NOT revoke the blob URL here — the optimistic post still holds a reference
+    // to previewUrl. It will be replaced by the remote R2 URL once the server confirms.
     setPostAttachPreviewUrl(null);
 
     try {
@@ -1089,8 +1117,12 @@ export default function PodDetailPage() {
                       <p className="text-sm text-zinc-700 leading-relaxed mt-1">{post.content}</p>
 
                       {/* Post attachment */}
-                      {post.attachmentUrl && (
-                        <AttachmentPreview url={post.attachmentUrl} type={post.attachmentType} />
+                      {(post.attachmentUrl || post.previewUrl) && (
+                        <AttachmentPreview
+                          url={post.attachmentUrl ?? ''}
+                          previewUrl={post.previewUrl}
+                          type={post.attachmentType}
+                        />
                       )}
 
                       {/* Actions */}
@@ -1202,8 +1234,10 @@ export default function PodDetailPage() {
           {/* Pending attachment preview */}
           {postAttachFile && (
             <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
-              {postAttachPreviewUrl ? (
-                <img src={postAttachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+              {postAttachPreviewUrl && !postAttachPreviewError ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={postAttachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0"
+                  onError={() => setPostAttachPreviewError(true)} />
               ) : (
                 <Paperclip size={13} className="text-zinc-400 shrink-0" />
               )}
@@ -1281,6 +1315,7 @@ export default function PodDetailPage() {
               const file = e.target.files?.[0];
               if (file) {
                 setPostAttachFile(file);
+                setPostAttachPreviewError(false);
                 if (file.type.startsWith('image/')) {
                   if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
                   setPostAttachPreviewUrl(URL.createObjectURL(file));
