@@ -191,6 +191,11 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 4 * 1024 * 1024) {
+        toast.error('File is too large. Maximum size is 4 MB.');
+        e.target.value = '';
+        return;
+      }
       setAttachFile(file);
       setAttachPreviewError(false);
       if (file.type.startsWith('image/')) {
@@ -849,12 +854,20 @@ export default function PodDetailPage() {
 
   const handlePost = async () => {
     if (!newPost.trim() && !postAttachFile) return;
-    setSending(true);
+    // Capture volatile state now — before any awaits — to avoid mid-async stale reads
     const content = newPost.trim();
     const file = postAttachFile;
     const attachType = postAttachType;
+    const capturedPreviewUrl = postAttachPreviewUrl;
 
-    // Upload file to Cloudflare R2 first, then create the post with the real URL
+    if (file && file.size > 4 * 1024 * 1024) {
+      toast.error('File is too large. Maximum size is 4 MB.');
+      return;
+    }
+
+    setSending(true);
+
+    // Upload file to backend first, then create the post with the real URL
     let resolvedUrl: string | undefined;
     let resolvedType = attachType;
     if (file) {
@@ -876,9 +889,9 @@ export default function PodDetailPage() {
       content,
       attachmentUrl: resolvedUrl,
       attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
-      // Pass the blob previewUrl so the image renders instantly for the poster
+      // Pass the captured blob previewUrl so the image renders instantly for the poster
       // while the remote URL loads. Other members always receive the remote URL.
-      previewUrl: resolvedType === 'IMAGE' ? postAttachPreviewUrl ?? undefined : undefined,
+      previewUrl: resolvedType === 'IMAGE' ? capturedPreviewUrl ?? undefined : undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
@@ -1347,6 +1360,11 @@ export default function PodDetailPage() {
             onChange={e => {
               const file = e.target.files?.[0];
               if (file) {
+                if (file.size > 4 * 1024 * 1024) {
+                  toast.error('File is too large. Maximum size is 4 MB.');
+                  e.target.value = '';
+                  return;
+                }
                 setPostAttachFile(file);
                 setPostAttachPreviewError(false);
                 if (file.type.startsWith('image/')) {

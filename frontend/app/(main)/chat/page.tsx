@@ -185,6 +185,16 @@ export default function ChatPage() {
     if (messages.length > 0 || isTyping) scrollToBottom();
   }, [messages, isTyping, scrollToBottom]);
 
+  // Revoke the pending blob URL when the page unmounts so it doesn't leak
+  useEffect(() => {
+    return () => {
+      setPendingAttachment(prev => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
+
   // ── Upload ──────────────────────────────────────────────────────────────────
   // Runs in the background — does not block the input.
   // Uses the file object saved on the attachment so retry works without
@@ -210,6 +220,7 @@ export default function ChatPage() {
       });
 
       if (!res.ok) {
+        if (res.status === 413) throw new Error('File is too large. Maximum size is 4 MB.');
         const errJson = await res.json().catch(() => ({}));
         throw new Error((errJson as any)?.message ?? `Upload failed (${res.status})`);
       }
@@ -226,6 +237,8 @@ export default function ChatPage() {
       );
     } catch (err) {
       console.error('[chat upload]', err);
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      toast.error(msg);
       setPendingAttachment(prev => (prev?.file === file ? { ...prev, status: 'error' } : prev));
     }
   }, []);
@@ -278,9 +291,12 @@ export default function ChatPage() {
   // ── Send ────────────────────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    // Warn if the attachment is still in flight rather than silently ignoring
     if (pendingAttachment?.status === 'uploading') {
       toast('Upload in progress — please wait a moment.', { icon: '⏳' });
+      return;
+    }
+    if (pendingAttachment?.status === 'error') {
+      toast.error('Attachment upload failed — retry or remove it before sending.');
       return;
     }
     const text = input.trim();

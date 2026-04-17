@@ -145,6 +145,8 @@ export const communityApi = {
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
     if (!token) throw new Error('Not authenticated');
 
+    if (file.size > 4 * 1024 * 1024) throw new Error('File is too large. Maximum size is 4 MB.');
+
     const form = new FormData();
     form.append('file', file);
 
@@ -155,6 +157,7 @@ export const communityApi = {
     });
 
     if (!res.ok) {
+      if (res.status === 413) throw new Error('File is too large. Maximum size is 4 MB.');
       const err = await res.json().catch(() => ({}));
       throw new Error((err as any)?.message ?? `Upload failed (${res.status})`);
     }
