@@ -2,8 +2,10 @@ import { Injectable, NotFoundException, InternalServerErrorException, Logger, On
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
+import * as https from 'https';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -26,6 +28,13 @@ export class FilesService implements OnModuleInit {
     this.bucket = config.get<string>('CLOUDFLARE_R2_BUCKET', 'buddi-uploads');
     this.publicUrl = config.get<string>('CLOUDFLARE_R2_PUBLIC_URL', '');
     const accountId = config.get<string>('CLOUDFLARE_ACCOUNT_ID', '');
+    // Railway Node.js 18+/OpenSSL 3.0 fails TLS handshake with Cloudflare R2.
+    // SSL_OP_LEGACY_SERVER_CONNECT (0x4) allows connection to servers that don't
+    // support RFC 5746 TLS renegotiation indication, fixing the sslv3 alert.
+    const httpsAgent = new https.Agent({
+      secureOptions: 0x4, // SSL_OP_LEGACY_SERVER_CONNECT
+      rejectUnauthorized: true,
+    });
     this.s3 = new S3Client({
       region: 'auto',
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -36,6 +45,7 @@ export class FilesService implements OnModuleInit {
       // AWS SDK v3.382+ adds CRC32 checksum headers by default — R2 rejects these
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
+      requestHandler: new NodeHttpHandler({ httpsAgent }),
     });
   }
 
