@@ -70,19 +70,13 @@ export class FilesService implements OnModuleInit {
     const fileType = this.detectFileType(file.mimetype, file.originalname);
 
     // Upload to Cloudflare R2
-    let fileUrl = '';
-    try {
-      await this.s3.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      }));
-      fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
-    } catch (err) {
-      this.logger.warn('R2 upload failed, using local path', err);
-      fileUrl = `/uploads/${key}`;
-    }
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }));
+    const fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
 
     const note = await this.prisma.note.create({
       data: {

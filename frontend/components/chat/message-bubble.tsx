@@ -169,7 +169,7 @@ export function MessageBubble({ message }: { message: Message }) {
         {/* Only render the text bubble if there's actual content */}
         {message.content && (
           <div
-            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+            className={`min-w-0 max-w-full px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
               isUser
                 ? 'bg-brand-500 text-white rounded-br-sm'
                 : 'bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 rounded-bl-sm shadow-card'

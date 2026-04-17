@@ -139,7 +139,9 @@ export default function ChatPage() {
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!urlRes.ok) throw new Error('Could not get upload URL');
-      const { uploadUrl, publicUrl, type } = await urlRes.json();
+      const urlJson = await urlRes.json();
+      // Backend wraps responses as { success, data, timestamp } via TransformInterceptor
+      const { uploadUrl, publicUrl, type } = urlJson.data ?? urlJson;
 
       // 2. PUT directly to R2 — bypasses Vercel's ~4.5 MB proxy body limit
       const putRes = await fetch(uploadUrl, {

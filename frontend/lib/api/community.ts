@@ -156,7 +156,9 @@ export const communityApi = {
       const err = await urlRes.json().catch(() => ({}));
       throw new Error((err as any)?.message ?? 'Could not get upload URL');
     }
-    const { uploadUrl, publicUrl, type } = await urlRes.json();
+    const urlJson = await urlRes.json();
+    // Backend wraps responses as { success, data, timestamp } via TransformInterceptor
+    const { uploadUrl, publicUrl, type } = urlJson.data ?? urlJson;
 
     // 2. PUT the file binary directly to R2 (no Vercel proxy in between)
     const putRes = await fetch(uploadUrl, {
