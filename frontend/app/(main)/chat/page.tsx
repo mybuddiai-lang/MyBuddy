@@ -133,20 +133,25 @@ export default function ChatPage() {
 
     setIsUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch('/api/backend/files/upload-attachment', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const json = await res.json();
-      const { url, type } = json.data ?? json;
+      // 1. Get a pre-signed R2 PUT URL (tiny request, goes through proxy fine)
+      const urlRes = await fetch(
+        `/api/backend/files/upload-url?contentType=${encodeURIComponent(file.type || 'application/octet-stream')}&filename=${encodeURIComponent(file.name)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!urlRes.ok) throw new Error('Could not get upload URL');
+      const { uploadUrl, publicUrl, type } = await urlRes.json();
 
-      // Create a local preview URL for images so the user can see it before sending
+      // 2. PUT directly to R2 — bypasses Vercel's ~4.5 MB proxy body limit
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('Upload to storage failed');
+
+      // Local blob URL so the image shows immediately in the pending preview
       const previewUrl = type === 'IMAGE' ? URL.createObjectURL(file) : undefined;
-      setPendingAttachment({ url, type, previewUrl, name: file.name });
+      setPendingAttachment({ url: publicUrl, type, previewUrl, name: file.name });
     } catch {
       toast.error('Failed to upload file. Please try again.');
     } finally {

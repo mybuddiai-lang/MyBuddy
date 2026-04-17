@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,7 +9,7 @@ import { AiService } from '../ai/ai.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
-export class FilesService {
+export class FilesService implements OnModuleInit {
   private readonly logger = new Logger(FilesService.name);
   private s3: S3Client;
   private bucket: string;
@@ -36,6 +37,29 @@ export class FilesService {
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
     });
+  }
+
+  // On startup, ensure the R2 bucket allows PUT from any origin so the browser
+  // can upload directly using a pre-signed URL without hitting CORS errors.
+  async onModuleInit() {
+    await this.ensureR2Cors().catch(err =>
+      this.logger.warn('R2 CORS setup skipped — configure AllowedMethods:[PUT] manually if direct uploads fail', err?.message),
+    );
+  }
+
+  private async ensureR2Cors() {
+    await this.s3.send(new PutBucketCorsCommand({
+      Bucket: this.bucket,
+      CORSConfiguration: {
+        CORSRules: [{
+          AllowedOrigins: ['*'],
+          AllowedMethods: ['PUT'],
+          AllowedHeaders: ['Content-Type'],
+          MaxAgeSeconds: 3600,
+        }],
+      },
+    }));
+    this.logger.log('R2 CORS configured: PUT allowed from any origin');
   }
 
   async upload(userId: string, file: Express.Multer.File, title?: string) {
@@ -264,6 +288,42 @@ export class FilesService {
     const detected = this.detectFileType(file.mimetype, file.originalname);
     const type = (['IMAGE', 'VOICE'].includes(detected) ? detected : 'FILE') as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
+  }
+
+  // Generate a short-lived pre-signed PUT URL so the browser can upload
+  // directly to Cloudflare R2, bypassing the Vercel proxy's 4.5 MB body limit.
+  // The returned `publicUrl` is what gets stored in the database after upload.
+  async getUploadUrl(
+    userId: string,
+    contentType: string,
+    filename: string,
+  ): Promise<{ uploadUrl: string; publicUrl: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> {
+    if (!this.publicUrl) {
+      throw new Error('File storage is not configured. Please contact support.');
+    }
+
+    const ext = (filename.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = filename
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60);
+    const key = `attachments/${userId}/${uuidv4()}-${base}.${ext}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    // 5-minute window is generous enough for slow connections
+    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 300 });
+    const publicUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
+
+    const detected = this.detectFileType(contentType, filename);
+    const type = (['IMAGE', 'VOICE'].includes(detected) ? detected : 'FILE') as 'IMAGE' | 'FILE' | 'VOICE';
+
+    return { uploadUrl, publicUrl, type };
   }
 
   async findAll(userId: string) {

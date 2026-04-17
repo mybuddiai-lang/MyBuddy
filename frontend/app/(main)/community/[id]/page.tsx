@@ -218,7 +218,9 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         resolvedUrl = uploadData?.url;
         resolvedType = uploadData?.type ?? attachType;
       } catch {
-        // continue without attachment
+        toast.error('File upload failed. Please try again.');
+        setSending(false);
+        return;
       }
     }
 
@@ -860,7 +862,9 @@ export default function PodDetailPage() {
         resolvedUrl = uploadData?.url;
         resolvedType = uploadData?.type ?? attachType;
       } catch {
-        toast.error('File upload failed — posting without attachment.');
+        toast.error('File upload failed. Please try again.');
+        setSending(false);
+        return;
       }
     }
 

@@ -139,20 +139,34 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Attachment upload — goes through the Next.js proxy (which streams the body
-  // correctly for multipart/form-data). No direct backend URL required.
+  // Upload an attachment directly to Cloudflare R2 via a pre-signed PUT URL.
+  // This bypasses the Vercel proxy entirely, removing the ~4.5 MB body-size limit.
+  // Flow: frontend → GET /api/backend/files/upload-url (tiny JSON, fine for proxy)
+  //      → PUT directly to R2 pre-signed URL (large binary, goes straight to R2)
   uploadAttachment: async (file: File) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch('/api/backend/files/upload-attachment', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
+    if (!token) throw new Error('Not authenticated');
+
+    // 1. Ask the backend for a pre-signed R2 PUT URL
+    const urlRes = await fetch(
+      `/api/backend/files/upload-url?contentType=${encodeURIComponent(file.type || 'application/octet-stream')}&filename=${encodeURIComponent(file.name)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!urlRes.ok) {
+      const err = await urlRes.json().catch(() => ({}));
+      throw new Error((err as any)?.message ?? 'Could not get upload URL');
+    }
+    const { uploadUrl, publicUrl, type } = await urlRes.json();
+
+    // 2. PUT the file binary directly to R2 (no Vercel proxy in between)
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
     });
-    if (!res.ok) throw new Error('Attachment upload failed');
-    const json = await res.json();
-    return { data: json };
+    if (!putRes.ok) throw new Error('Upload to storage failed');
+
+    return { data: { url: publicUrl, type } };
   },
 
   // Polls

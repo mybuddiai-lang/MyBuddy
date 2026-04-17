@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Param, Body, UploadedFile, UseInterceptors, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Query, Body, UploadedFile, UseInterceptors, UseGuards, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
@@ -46,6 +46,21 @@ export class FilesController {
     if (!file) throw new BadRequestException('No audio file received');
     const text = await this.filesService.transcribeAudio(file);
     return { text };
+  }
+
+  // Returns a short-lived pre-signed PUT URL for direct browser → R2 uploads.
+  // The browser uses it to PUT the file binary directly to Cloudflare R2,
+  // completely bypassing the Vercel proxy (and its 4.5 MB body-size limit).
+  @Get('upload-url')
+  getUploadUrl(
+    @CurrentUser('id') userId: string,
+    @Query('contentType') contentType: string,
+    @Query('filename') filename: string,
+  ) {
+    if (!contentType || !filename) {
+      throw new BadRequestException('contentType and filename query params are required');
+    }
+    return this.filesService.getUploadUrl(userId, contentType, filename);
   }
 
   @Get()
