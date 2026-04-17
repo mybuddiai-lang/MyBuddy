@@ -418,20 +418,26 @@ export class CommunityService {
   // ─── Private notification helpers ─────────────────────────────────────────
 
   private async notifyAdminsOfNewMember(communityId: string, newUserId: string, communityName: string) {
-    const [newUser, admins] = await Promise.all([
+    const [newUser, allMembers] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: newUserId }, select: { name: true } }),
-      this.prisma.communityMember.findMany({ where: { communityId, role: 'ADMIN' }, select: { userId: true } }),
+      this.prisma.communityMember.findMany({ where: { communityId }, select: { userId: true, role: true } }),
     ]);
     const memberName = newUser?.name ?? 'Someone';
     const data = { communityId, communityName, userId: newUserId, userName: memberName };
-    for (const admin of admins) {
-      this.gateway.notifyUser(admin.userId, 'community:member_joined', data);
-      this.push.sendToUser(admin.userId, {
-        title: communityName,
-        body: `${memberName} just joined your community`,
-        url: `/community/${communityId}`,
-        tag: `member-joined-${communityId}`,
-      }).catch(() => {});
+
+    for (const member of allMembers) {
+      if (member.userId === newUserId) continue; // don't notify the person who joined
+      // Real-time WS for everyone in the community
+      this.gateway.notifyUser(member.userId, 'community:member_joined', data);
+      // Push only to admins (avoid notification flood for large communities)
+      if (member.role === 'ADMIN') {
+        this.push.sendToUser(member.userId, {
+          title: communityName,
+          body: `${memberName} just joined`,
+          url: `/community/${communityId}`,
+          tag: `member-joined-${communityId}`,
+        }).catch(() => {});
+      }
     }
   }
 
@@ -458,11 +464,12 @@ export class CommunityService {
       content: preview,
     });
 
-    // Push (when app is in background / closed)
+    // Push (when app is in background / closed) — URL includes post ID so the
+    // community page can scroll directly to the replied-to post on open
     await this.push.sendToUser(postAuthorId, {
       title: `${replyerName} replied to your post`,
       body: preview,
-      url: `/community/${communityId}`,
+      url: `/community/${communityId}?post=${postId}`,
       tag: `reply-${postId}`,
     });
   }
@@ -480,6 +487,23 @@ export class CommunityService {
         body: `${authorName}: ${body}`,
         url: `/community/${communityId}`,
         tag: `community-post-${communityId}`,
+      }).catch(() => {});
+    }
+  }
+
+  private async pushPollToMembers(communityId: string, authorId: string, authorName: string, question: string, communityName: string) {
+    const members = await this.prisma.communityMember.findMany({
+      where: { communityId },
+      select: { userId: true },
+    });
+    const preview = question.length > 80 ? question.slice(0, 77) + '...' : question;
+    for (const member of members) {
+      if (member.userId === authorId) continue;
+      this.push.sendToUser(member.userId, {
+        title: `${communityName} — new poll`,
+        body: `${authorName}: ${preview}`,
+        url: `/community/${communityId}?tab=polls`,
+        tag: `community-poll-${communityId}`,
       }).catch(() => {});
     }
   }
@@ -542,6 +566,8 @@ export class CommunityService {
   }
 
   async createPoll(communityId: string, authorId: string, question: string, options: string[], endsAt?: Date) {
+    const community = await this.prisma.community.findUnique({ where: { id: communityId }, select: { name: true } });
+
     const poll = await this.prisma.communityPoll.create({
       data: {
         communityId,
@@ -556,6 +582,10 @@ export class CommunityService {
       },
     });
     this.gateway.broadcastToCommunity(communityId, 'community:new_poll', poll);
+
+    // Push notification to all members except the creator — non-blocking
+    this.pushPollToMembers(communityId, authorId, (poll as any).author?.name ?? 'Someone', question, community?.name ?? 'Community').catch(() => {});
+
     return poll;
   }
 

@@ -60,8 +60,18 @@ export default function ChatPage() {
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToBottom = () => {
+    // Use direct scrollTop manipulation on the container — more reliable than
+    // scrollIntoView which can scroll the window instead of the inner container.
+    requestAnimationFrame(() => {
+      const el = scrollContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  };
 
   useEffect(() => {
     loadHistory().then(() => {
@@ -69,11 +79,9 @@ export default function ChatPage() {
     });
   }, []);
 
-  // Scroll to bottom instantly (no smooth) to avoid glitch when new messages appear
+  // Always scroll to bottom when new messages arrive or typing indicator changes
   useEffect(() => {
-    if (messages.length > 0 || isTyping) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-    }
+    if (messages.length > 0 || isTyping) scrollToBottom();
   }, [messages, isTyping]);
 
   // NOTE: blob previewUrls are only revoked when the user explicitly cancels the
@@ -210,7 +218,7 @@ export default function ChatPage() {
       />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-1">
         {isLoadingHistory && messages.length === 0 ? (
           <div className="flex flex-col gap-4 pt-4">
             {[1, 2, 3].map(i => (

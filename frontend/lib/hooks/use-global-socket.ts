@@ -10,6 +10,7 @@ interface GlobalSocketHandlers {
   onMemberJoined?: (data: { communityId: string; communityName: string; userName: string }) => void;
   onJoinApproved?: (data: { communityId: string; communityName: string }) => void;
   onReplyOnPost?: (data: { communityId: string; postId: string; communityName: string; replyerName: string; content: string }) => void;
+  onNewCommunity?: (data: { id: string; name: string; field: string }) => void;
 }
 
 export function useGlobalSocket(handlers: GlobalSocketHandlers) {
@@ -50,6 +51,10 @@ export function useGlobalSocket(handlers: GlobalSocketHandlers) {
 
     socket.on('community:reply_on_post', (data: any) => {
       try { handlersRef.current.onReplyOnPost?.(data); } catch { /* never crash the socket */ }
+    });
+
+    socket.on('community:new', (data: any) => {
+      try { handlersRef.current.onNewCommunity?.(data); } catch { /* never crash the socket */ }
     });
 
     return () => {

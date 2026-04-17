@@ -4,7 +4,7 @@ import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Bell, Users, CheckCircle, MessageCircle, X } from 'lucide-react';
+import { Bell, Users, CheckCircle, MessageCircle, X, Hash } from 'lucide-react';
 import { useGlobalSocket } from '@/lib/hooks/use-global-socket';
 import { usePushNotifications } from '@/lib/hooks/use-push-notifications';
 
@@ -63,8 +63,20 @@ const TOAST_STYLE: React.CSSProperties = {
 
 // ─── Notification permission banner ──────────────────────────────────────────
 // Shown once per session when permission hasn't been asked yet.
+// On iOS, web push only works when the app is installed as a PWA (Add to Home Screen).
+// We detect this and show the appropriate message.
 
 const DISMISSED_KEY = 'buddi_notif_prompt_dismissed';
+
+function isIos() {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function isIosPwa() {
+  // navigator.standalone is true when running as a home screen PWA on iOS
+  return isIos() && (navigator as any).standalone === true;
+}
 
 function NotificationPermissionBanner() {
   const [show, setShow] = useState(false);
@@ -72,10 +84,21 @@ function NotificationPermissionBanner() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (sessionStorage.getItem(DISMISSED_KEY)) return;
+
+    const ios = isIos();
+    const iosPwa = isIosPwa();
+
+    // On iOS browser (not installed): show "Add to Home Screen" hint
+    // On iOS PWA or non-iOS: show only when Notification API permission is 'default'
+    if (ios && !iosPwa) {
+      const t = setTimeout(() => setShow(true), 4000);
+      return () => clearTimeout(t);
+    }
+
     if (!('Notification' in window)) return;
     if (Notification.permission !== 'default') return;
-    if (sessionStorage.getItem(DISMISSED_KEY)) return;
-    // Delay slightly so it doesn't flash on every page load
+
     const t = setTimeout(() => setShow(true), 3000);
     return () => clearTimeout(t);
   }, []);
@@ -97,32 +120,47 @@ function NotificationPermissionBanner() {
     dismiss();
   };
 
+  const ios = isIos();
+  const iosPwa = isIosPwa();
+  // iOS in browser — show install instructions instead
+  const showInstallHint = ios && !iosPwa;
+
   return (
-    <div className="fixed bottom-20 inset-x-0 z-50 px-4 pb-safe pointer-events-none flex justify-center">
+    <div className="fixed bottom-20 inset-x-0 z-50 px-4 pointer-events-none flex justify-center">
       <div className="pointer-events-auto w-full max-w-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3">
         <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center shrink-0 mt-0.5">
           <Bell size={16} className="text-brand-500" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Stay in the loop</p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Enable notifications to get alerts for replies, new posts, and reminders.
-          </p>
-          <div className="flex items-center gap-2 mt-2.5">
-            <button
-              onClick={handleEnable}
-              disabled={state === 'loading'}
-              className="text-xs font-semibold bg-brand-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-60 transition hover:bg-brand-600"
-            >
-              {state === 'loading' ? 'Enabling…' : 'Enable notifications'}
+          {showInstallHint ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              To get notifications on iOS, install Buddi: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, then re-open.
+            </p>
+          ) : (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Get alerts for replies, new posts, polls, and reminders.
+            </p>
+          )}
+          {!showInstallHint && (
+            <div className="flex items-center gap-2 mt-2.5">
+              <button
+                onClick={handleEnable}
+                disabled={state === 'loading'}
+                className="text-xs font-semibold bg-brand-500 text-white px-3 py-1.5 rounded-lg disabled:opacity-60 transition hover:bg-brand-600"
+              >
+                {state === 'loading' ? 'Enabling…' : 'Enable notifications'}
+              </button>
+              <button onClick={dismiss} className="text-xs text-zinc-400 hover:text-zinc-600 transition px-1">
+                Not now
+              </button>
+            </div>
+          )}
+          {showInstallHint && (
+            <button onClick={dismiss} className="text-xs text-zinc-400 hover:text-zinc-600 transition mt-2 block">
+              Got it
             </button>
-            <button
-              onClick={dismiss}
-              className="text-xs text-zinc-400 hover:text-zinc-600 transition px-1"
-            >
-              Not now
-            </button>
-          </div>
+          )}
         </div>
         <button onClick={dismiss} className="text-zinc-400 hover:text-zinc-600 transition shrink-0">
           <X size={14} />
@@ -196,10 +234,24 @@ export function NotificationListener() {
             icon={<MessageCircle size={16} className="text-blue-500" />}
             title={`${data.replyerName} replied to your post`}
             body={data.content}
-            onClick={() => { toast.dismiss(t.id); navigate(`/community/${data.communityId}`); }}
+            onClick={() => { toast.dismiss(t.id); navigate(`/community/${data.communityId}?post=${data.postId}`); }}
           />
         ),
         { duration: 6000, position: 'top-center', style: TOAST_STYLE },
+      );
+    },
+
+    onNewCommunity: (data) => {
+      toast.custom(
+        (t) => (
+          <NotificationToast
+            icon={<Hash size={16} className="text-violet-500" />}
+            title="New community"
+            body={`${data.name} — ${data.field}`}
+            onClick={() => { toast.dismiss(t.id); navigate(`/community/${data.id}`); }}
+          />
+        ),
+        { duration: 5000, position: 'top-center', style: TOAST_STYLE },
       );
     },
   });

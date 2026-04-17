@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Send, Heart, Users, Hash, Pin, MoreHorizontal, MessageSquare,
@@ -655,6 +655,7 @@ function MemberSheet({
 export default function PodDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuthStore();
 
   const [pod, setPod] = useState<PodMeta | null>(null);
@@ -715,6 +716,23 @@ export default function PodDetailPage() {
     }
   }, [posts, activeTab]);
 
+  // Deep-link: ?post=<id> — scroll to the post and open its reply thread
+  useEffect(() => {
+    const postId = searchParams.get('post');
+    if (!postId || posts.length === 0 || activeTab !== 'posts') return;
+    // Small delay so the post elements have been painted
+    const t = setTimeout(() => {
+      const el = document.getElementById(`post-${postId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-brand-400', 'ring-offset-1');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-brand-400', 'ring-offset-1'), 2500);
+      }
+      setExpandedPostId(postId);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [posts, searchParams, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isPlatformAdmin = user?.role === 'ADMIN';
   const isAdmin = pod?.myRole === 'ADMIN' || isPlatformAdmin;
   const canDeleteAny = isPlatformAdmin || pod?.myRole === 'ADMIN' || pod?.myRole === 'MODERATOR';
@@ -760,10 +778,10 @@ export default function PodDetailPage() {
     setPostsLoading(true);
     setPodLoading(true);
 
-    // Posts
+    // Posts — API returns newest-first; reverse so oldest is at top, newest at bottom
     communityApi.getPosts(id)
       .then((res: any) => {
-        const apiPosts: CommunityPost[] = res?.data?.data ?? [];
+        const apiPosts: CommunityPost[] = (res?.data?.data ?? []).slice().reverse();
         setPosts(apiPosts.map(p => ({ ...p, liked: false })));
       })
       .catch(() => {})
@@ -792,7 +810,11 @@ export default function PodDetailPage() {
     communityApi.getPolls(id)
       .then((res: any) => setPolls(res?.data?.data ?? []))
       .catch(() => setPollLoadError(true));
-  }, [id]);
+
+    // Deep-link: ?tab=polls switches tab
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'polls') setActiveTab('polls');
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load members & join requests for admin
   useEffect(() => {
@@ -1099,11 +1121,12 @@ export default function PodDetailPage() {
             <AnimatePresence initial={false}>
               {posts.map((post, i) => (
                 <motion.div
+                  id={`post-${post.id}`}
                   key={post.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.03, 0.2) }}
-                  className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card"
+                  className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card transition-shadow"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-bold text-zinc-600 shrink-0">
