@@ -159,6 +159,9 @@ export const communityApi = {
     const urlJson = await urlRes.json();
     // Backend wraps responses as { success, data, timestamp } via TransformInterceptor
     const { uploadUrl, publicUrl, type } = urlJson.data ?? urlJson;
+    if (!uploadUrl || !publicUrl) {
+      throw new Error('Storage not configured — CLOUDFLARE_R2_PUBLIC_URL may be missing on Railway.');
+    }
 
     // 2. PUT the file binary directly to R2 (no Vercel proxy in between)
     const putRes = await fetch(uploadUrl, {
@@ -166,9 +169,10 @@ export const communityApi = {
       headers: { 'Content-Type': file.type || 'application/octet-stream' },
       body: file,
     });
-    if (!putRes.ok) throw new Error('Upload to storage failed');
+    if (!putRes.ok) throw new Error(`Upload to storage failed (${putRes.status})`);
 
-    return { data: { url: publicUrl, type } };
+    // Return a flat object — callers read uploadRes.url / uploadRes.type directly
+    return { url: publicUrl as string, type: type as 'IMAGE' | 'FILE' | 'VOICE' };
   },
 
   // Polls

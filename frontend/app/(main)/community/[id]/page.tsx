@@ -214,9 +214,8 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     if (attachFile) {
       try {
         const uploadRes = await communityApi.uploadAttachment(attachFile);
-        const uploadData = (uploadRes as any)?.data?.data ?? (uploadRes as any)?.data;
-        resolvedUrl = uploadData?.url;
-        resolvedType = uploadData?.type ?? attachType;
+        resolvedUrl = uploadRes.url;
+        resolvedType = uploadRes.type ?? attachType;
       } catch {
         toast.error('File upload failed. Please try again.');
         setSending(false);
@@ -253,8 +252,11 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       });
       const created = (res as any)?.data?.data;
       if (created?.id) {
-        // Swap optimistic entry with the real one from the server
-        setReplies(prev => prev.map(r => r.id === optimistic.id ? created : r));
+        // Swap optimistic reply with the real one; preserve previewUrl so the image
+        // doesn't flash while the R2 URL loads for the sender.
+        setReplies(prev => prev.map(r =>
+          r.id === optimistic.id ? { ...created, previewUrl: optimistic.previewUrl } : r,
+        ));
       } else {
         // Unexpected response shape — refetch authoritative list so the UI
         // stays in sync (the reply was created, we just couldn't confirm it)
@@ -858,9 +860,8 @@ export default function PodDetailPage() {
     if (file) {
       try {
         const uploadRes = await communityApi.uploadAttachment(file);
-        const uploadData = (uploadRes as any)?.data?.data ?? (uploadRes as any)?.data;
-        resolvedUrl = uploadData?.url;
-        resolvedType = uploadData?.type ?? attachType;
+        resolvedUrl = uploadRes.url;
+        resolvedType = uploadRes.type ?? attachType;
       } catch {
         toast.error('File upload failed. Please try again.');
         setSending(false);
@@ -904,9 +905,14 @@ export default function PodDetailPage() {
       const created = (res as any)?.data?.data;
       if (created?.id) {
         setPosts(prev => {
-          // Replace optimistic post, then deduplicate in case the socket already
-          // added the real post before the API response arrived.
-          const replaced = prev.map(p => p.id === optimistic.id ? { ...created, liked: false } : p);
+          // Replace optimistic post, preserving blob previewUrl so the image stays
+          // visible without a flash while the R2 URL confirms. Deduplicate in case
+          // the socket already added the real post before the API response arrived.
+          const replaced = prev.map(p =>
+            p.id === optimistic.id
+              ? { ...created, liked: false, previewUrl: optimistic.previewUrl }
+              : p,
+          );
           const seen = new Set<string>();
           return replaced.filter(p => !seen.has(p.id) && !!seen.add(p.id));
         });

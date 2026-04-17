@@ -142,6 +142,9 @@ export default function ChatPage() {
       const urlJson = await urlRes.json();
       // Backend wraps responses as { success, data, timestamp } via TransformInterceptor
       const { uploadUrl, publicUrl, type } = urlJson.data ?? urlJson;
+      if (!uploadUrl || !publicUrl) {
+        throw new Error('Storage not configured — CLOUDFLARE_R2_PUBLIC_URL may be missing on Railway.');
+      }
 
       // 2. PUT directly to R2 — bypasses Vercel's ~4.5 MB proxy body limit
       const putRes = await fetch(uploadUrl, {

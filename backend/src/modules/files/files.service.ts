@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -252,11 +252,8 @@ export class FilesService implements OnModuleInit {
     const key = `attachments/${userId}/${uuidv4()}-${safeName}`;
 
     if (!this.publicUrl) {
-      this.logger.error(
-        'CLOUDFLARE_R2_PUBLIC_URL is not configured — attachment uploads will fail. ' +
-        'Set this env var to the public base URL of your R2 bucket (e.g. https://pub-xxx.r2.dev).',
-      );
-      throw new Error('File storage is not configured. Please contact support.');
+      this.logger.error('CLOUDFLARE_R2_PUBLIC_URL is not configured — set it on Railway (e.g. https://pub-xxx.r2.dev).');
+      throw new InternalServerErrorException('File storage is not configured — set CLOUDFLARE_R2_PUBLIC_URL on Railway.');
     }
 
     try {
@@ -293,7 +290,7 @@ export class FilesService implements OnModuleInit {
     filename: string,
   ): Promise<{ uploadUrl: string; publicUrl: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> {
     if (!this.publicUrl) {
-      throw new Error('File storage is not configured. Please contact support.');
+      throw new InternalServerErrorException('File storage is not configured — set CLOUDFLARE_R2_PUBLIC_URL on Railway.');
     }
 
     const ext = (filename.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
