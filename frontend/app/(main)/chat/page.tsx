@@ -47,7 +47,7 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
   TEXT: <FileText size={14} className="text-zinc-500" />,
 };
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB — hard cap imposed by Vercel proxy
 
 // ─── Attachment state ──────────────────────────────────────────────────────────
 // Upload is fire-and-forget: the file is shown immediately via a local blob URL
@@ -198,34 +198,34 @@ export default function ChatPage() {
     }
 
     try {
-      // 1. Get a pre-signed PUT URL — tiny request, goes through the proxy fine
-      const urlRes = await fetch(
-        `/api/backend/files/upload-url?contentType=${encodeURIComponent(
-          file.type || 'application/octet-stream',
-        )}&filename=${encodeURIComponent(file.name)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!urlRes.ok) throw new Error('Could not get upload URL');
-      const urlJson = await urlRes.json();
-      // Backend wraps all responses: { success, data, timestamp }
-      const { uploadUrl, publicUrl, type: detectedType } = urlJson.data ?? urlJson;
-      if (!uploadUrl || !publicUrl) throw new Error('Storage not configured on the server.');
+      // POST the file as multipart FormData through the Vercel proxy to the backend.
+      // The backend uploads to R2 server-side — no browser-to-R2 CORS needed at all.
+      const form = new FormData();
+      form.append('file', file);
 
-      // 2. PUT directly to R2 — bypasses Vercel's 4.5 MB proxy limit entirely
-      const putRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
+      const res = await fetch('/api/backend/files/upload-attachment', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
       });
-      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
 
-      // Only update if this file is still the active attachment (user hasn't changed it)
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error((errJson as any)?.message ?? `Upload failed (${res.status})`);
+      }
+
+      const json = await res.json();
+      // Backend wraps responses: { success, data, timestamp }
+      const { url, type: detectedType } = json.data ?? json;
+      if (!url) throw new Error('No URL returned from server');
+
       setPendingAttachment(prev =>
         prev?.file === file
-          ? { ...prev, uploadedUrl: publicUrl as string, type: (detectedType ?? prev.type) as AttachmentType, status: 'done' }
+          ? { ...prev, uploadedUrl: url as string, type: (detectedType ?? prev.type) as AttachmentType, status: 'done' }
           : prev,
       );
-    } catch {
+    } catch (err) {
+      console.error('[chat upload]', err);
       setPendingAttachment(prev => (prev?.file === file ? { ...prev, status: 'error' } : prev));
     }
   }, []);
@@ -239,7 +239,7 @@ export default function ChatPage() {
       if (!file) return;
 
       if (file.size > MAX_FILE_BYTES) {
-        toast.error('File too large. Maximum size is 20 MB.');
+        toast.error('File too large. Maximum size is 4 MB.');
         return;
       }
 
