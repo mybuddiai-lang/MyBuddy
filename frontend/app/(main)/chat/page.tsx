@@ -315,7 +315,7 @@ export default function ChatPage() {
                       {FILE_ICONS[note.fileType] || <FileText size={14} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-800 truncate">{note.title}</p>
+                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{note.title}</p>
                     </div>
                   </button>
                 ))

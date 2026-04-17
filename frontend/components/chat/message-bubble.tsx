@@ -155,7 +155,7 @@ export function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
 
-      <div className={`max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1.5`}>
+      <div className={`min-w-0 max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1.5`}>
         {/* Attachment preview sits above the text bubble */}
         {message.attachmentUrl && (
           <AttachmentPreview
