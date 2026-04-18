@@ -28,9 +28,12 @@ export class FilesService implements OnModuleInit {
     const accountId = config.get<string>('CLOUDFLARE_ACCOUNT_ID', '');
     // S3 client is used only for signing pre-signed PUT URLs (getSignedUrl).
     // No actual HTTP traffic goes from Railway to R2 — the browser does the PUT directly.
+    // forcePathStyle=true generates path-style URLs ({accountId}.r2.cloudflarestorage.com/bucket/key)
+    // which is Cloudflare's recommended format and ensures CORS is applied correctly.
     this.s3 = new S3Client({
       region: 'auto',
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      forcePathStyle: true,
       credentials: {
         accessKeyId: config.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID', ''),
         secretAccessKey: config.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY', ''),
