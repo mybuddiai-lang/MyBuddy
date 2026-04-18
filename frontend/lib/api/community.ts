@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { uploadToR2 } from './upload';
+import { uploadViaProxy } from './upload';
 
 export interface Community {
   id: string;
@@ -140,9 +140,9 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Upload directly from the browser to R2 via a backend-generated pre-signed URL.
-  // Railway never touches R2 (TLS incompatibility), so the browser does the PUT.
-  uploadAttachment: (file: File) => uploadToR2(file),
+  // Upload via Vercel server-side proxy → R2. Browser never talks to R2 directly,
+  // so no CORS configuration is needed on the R2 bucket.
+  uploadAttachment: (file: File) => uploadViaProxy(file),
 
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),

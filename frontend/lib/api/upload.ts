@@ -1,10 +1,62 @@
 /**
- * Uploads a file directly to Cloudflare R2 using a backend-generated pre-signed URL.
- * The browser does the actual PUT — Railway never touches R2, avoiding the TLS issue.
+ * uploadViaProxy — upload a file through the Vercel server-side route.
  *
- * Prerequisite: R2 CORS must be configured in the Cloudflare dashboard:
+ * Flow: Browser → POST /api/upload → Vercel Node.js → PUT to R2
+ *
+ * Why: The browser cannot PUT directly to r2.cloudflarestorage.com without
+ * CORS configured on the bucket. Routing through Vercel's Lambda (Amazon
+ * Linux + modern OpenSSL) avoids CORS entirely — no Cloudflare dashboard
+ * config required.
+ *
+ * Use this for community post attachments and chat file attachments.
+ */
+export async function uploadViaProxy(
+  file: File,
+  options?: { maxBytes?: number },
+): Promise<{ url: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> {
+  const maxBytes = options?.maxBytes ?? 25 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    const mb = (maxBytes / 1024 / 1024).toFixed(0);
+    throw new Error(`File is too large. Maximum size is ${mb} MB.`);
+  }
+
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+  if (!token) throw new Error('Not authenticated');
+
+  const body = new FormData();
+  body.append('file', file);
+
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `Upload failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  if (!data.url) throw new Error('Invalid response from upload server');
+
+  return {
+    url: data.url as string,
+    type: (data.type ?? 'FILE') as 'IMAGE' | 'FILE' | 'VOICE',
+  };
+}
+
+/**
+ * uploadToR2 — browser-direct PUT to Cloudflare R2 via a backend-generated
+ * pre-signed URL.
+ *
+ * Use this ONLY for slide/note uploads (up to 50 MB) where the Vercel proxy
+ * body-size limit would be exceeded.
+ *
+ * REQUIRES R2 CORS to be configured in the Cloudflare dashboard:
  *   Bucket → Settings → CORS Policy
- *   AllowedOrigins: ["*"], AllowedMethods: ["PUT"], AllowedHeaders: ["*"], MaxAgeSeconds: 3600
+ *   AllowedOrigins: ["*"]  AllowedMethods: ["PUT"]  AllowedHeaders: ["*"]
  */
 export async function uploadToR2(
   file: File,
@@ -16,11 +68,12 @@ export async function uploadToR2(
     throw new Error(`File is too large. Maximum size is ${mb} MB.`);
   }
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
   if (!token) throw new Error('Not authenticated');
 
   // Step 1: Get a pre-signed PUT URL from the backend.
-  // This is just signing math — no backend→R2 HTTP request.
+  // Pure cryptographic signing — no backend→R2 network call.
   const params = new URLSearchParams({
     contentType: file.type || 'application/octet-stream',
     filename: file.name,

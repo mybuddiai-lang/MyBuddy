@@ -14,7 +14,7 @@ import { useSlides } from '@/lib/hooks/use-slides';
 import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
 import type { Message } from '@/components/chat/message-bubble';
-import { uploadToR2 } from '@/lib/api/upload';
+import { uploadViaProxy } from '@/lib/api/upload';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -203,9 +203,8 @@ export default function ChatPage() {
 
   const doUpload = useCallback(async (file: File) => {
     try {
-      // Browser uploads directly to R2 via a backend-generated pre-signed URL.
-      // Railway never connects to R2 — no TLS issues.
-      const { url, type: detectedType } = await uploadToR2(file, { maxBytes: MAX_FILE_BYTES });
+      // Upload via Vercel server-side proxy → R2. No CORS config needed.
+      const { url, type: detectedType } = await uploadViaProxy(file, { maxBytes: MAX_FILE_BYTES });
       setPendingAttachment(prev =>
         prev?.file === file
           ? { ...prev, uploadedUrl: url, type: detectedType as AttachmentType, status: 'done' }
