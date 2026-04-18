@@ -25,17 +25,6 @@ export class FilesController {
     return this.filesService.upload(userId, file, title);
   }
 
-  @Post('upload-attachment')
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
-  uploadAttachment(
-    @CurrentUser('id') userId: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) throw new BadRequestException('No file received');
-    return this.filesService.uploadAttachment(userId, file);
-  }
-
   @Post('transcribe')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))

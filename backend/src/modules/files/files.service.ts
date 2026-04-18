@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { FetchHttpHandler } from '@smithy/fetch-http-handler';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -27,8 +26,8 @@ export class FilesService implements OnModuleInit {
     this.bucket = config.get<string>('CLOUDFLARE_R2_BUCKET', 'buddi-uploads');
     this.publicUrl = config.get<string>('CLOUDFLARE_R2_PUBLIC_URL', '');
     const accountId = config.get<string>('CLOUDFLARE_ACCOUNT_ID', '');
-    // FetchHttpHandler uses Node.js native fetch (undici) instead of the https
-    // module, bypassing the OpenSSL 3.0 TLS handshake failure on Railway → R2.
+    // S3 client is used only for signing pre-signed PUT URLs (getSignedUrl).
+    // No actual HTTP traffic goes from Railway to R2 — the browser does the PUT directly.
     this.s3 = new S3Client({
       region: 'auto',
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -39,16 +38,11 @@ export class FilesService implements OnModuleInit {
       // AWS SDK v3.382+ adds CRC32 checksum headers by default — R2 rejects these
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
-      requestHandler: new FetchHttpHandler(),
     });
   }
 
-  // Railway cannot connect to r2.cloudflarestorage.com due to TLS incompatibility.
-  // Uploads now use pre-signed URLs so the browser uploads directly to R2.
-  // R2 CORS MUST be configured manually in the Cloudflare dashboard:
-  //   Bucket → Settings → CORS Policy → AllowedOrigins:["*"] AllowedMethods:["PUT"] AllowedHeaders:["*"]
   async onModuleInit() {
-    this.logger.log('FilesService ready — uploads use browser-direct pre-signed URLs. Ensure R2 CORS is configured in Cloudflare dashboard.');
+    this.logger.log('FilesService ready — all uploads use browser-direct pre-signed URLs (Railway → R2 direct upload is not supported due to TLS incompatibility). Ensure R2 CORS is configured in Cloudflare dashboard: AllowedOrigins:["*"] AllowedMethods:["PUT"] AllowedHeaders:["*"]');
   }
 
   // Called after the browser uploads a note/slide file directly to R2.
@@ -235,49 +229,6 @@ export class FilesService implements OnModuleInit {
 
   async transcribeAudio(file: Express.Multer.File): Promise<string> {
     return this.aiService.transcribeAudio(file);
-  }
-
-  // Lightweight upload for community post/reply attachments — no Note record, no AI processing
-  async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
-    // Sanitize filename: keep only alphanumeric, dots, dashes, underscores.
-    // Special characters (spaces, unicode, parens…) break the R2 URL when
-    // inserted into the object key without encoding.
-    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const base = file.originalname.replace(/\.[^/.]+$/, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .replace(/_+/g, '_')
-      .slice(0, 60);
-    const safeName = `${base}.${ext}`;
-    const key = `attachments/${userId}/${uuidv4()}-${safeName}`;
-
-    if (!this.publicUrl) {
-      this.logger.error('CLOUDFLARE_R2_PUBLIC_URL is not configured — set it on Railway (e.g. https://pub-xxx.r2.dev).');
-      throw new InternalServerErrorException('File storage is not configured — set CLOUDFLARE_R2_PUBLIC_URL on Railway.');
-    }
-
-    try {
-      await this.s3.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      }));
-    } catch (err) {
-      // R2 upload failed — do NOT store a broken fallback URL in the database.
-      // The client will receive a 500 and show an appropriate error toast.
-      this.logger.error('R2 attachment upload failed', err);
-      throw new Error('File upload failed. Please try again.');
-    }
-
-    // Normalise publicUrl: strip any trailing slash so we never get double-slashes.
-    const base_url = this.publicUrl.replace(/\/+$/, '');
-    const url = `${base_url}/${key}`;
-
-    // AttachmentType only has FILE | IMAGE | VOICE — 'TEXT' (from detectFileType's
-    // default) is not valid here. Map anything that isn't IMAGE or VOICE to FILE.
-    const detected = this.detectFileType(file.mimetype, file.originalname);
-    const type = (['IMAGE', 'VOICE'].includes(detected) ? detected : 'FILE') as 'FILE' | 'IMAGE' | 'VOICE';
-    return { url, type };
   }
 
   // Generate a short-lived pre-signed PUT URL so the browser can upload
