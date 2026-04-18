@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { uploadToR2 } from './upload';
+import { uploadViaProxy } from './upload';
 
 export interface Note {
   id: string;
@@ -15,7 +15,7 @@ export interface Note {
 export const slidesApi = {
   async upload(file: File): Promise<Note> {
     // Step 1: Upload directly from browser to R2 (Railway can't connect to R2)
-    const { url: publicUrl } = await uploadToR2(file, { maxBytes: 50 * 1024 * 1024 });
+    const { url: publicUrl } = await uploadViaProxy(file, { maxBytes: 50 * 1024 * 1024 });
 
     // Step 2: Register with backend — creates note record & triggers AI processing
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;

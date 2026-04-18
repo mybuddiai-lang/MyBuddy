@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { uploadToR2 } from './upload';
+import { uploadViaProxy } from './upload';
 
 export interface Community {
   id: string;
@@ -143,7 +143,7 @@ export const communityApi = {
   // Browser uploads directly to Cloudflare R2 via a backend-generated pre-signed URL.
   // Requires R2 CORS: Cloudflare Dashboard → R2 → buddi-bucket → Settings → CORS
   // AllowedOrigins: ["*"]  AllowedMethods: ["PUT"]  AllowedHeaders: ["*"]
-  uploadAttachment: (file: File) => uploadToR2(file),
+  uploadAttachment: (file: File) => uploadViaProxy(file),
 
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),
