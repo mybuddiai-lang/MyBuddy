@@ -31,6 +31,7 @@ export async function uploadToR2(
   });
   const urlRes = await fetch(`/api/backend/files/upload-url?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store', // pre-signed URLs expire in 5 min — never serve from cache
   });
   if (!urlRes.ok) {
     const err = await urlRes.json().catch(() => ({}));

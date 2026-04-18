@@ -35,10 +35,6 @@ export class FilesService implements OnModuleInit {
         accessKeyId: config.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID', ''),
         secretAccessKey: config.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY', ''),
       },
-      // Path-style URLs keep the bucket name in the URL path instead of the subdomain.
-      // R2 only applies bucket CORS policies to path-style requests
-      // (virtual-hosted style subdomain URLs bypass CORS lookup).
-      forcePathStyle: true,
       // AWS SDK v3.382+ adds CRC32 checksum headers by default — R2 rejects these
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
