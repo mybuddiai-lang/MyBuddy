@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { uploadToR2 } from './upload';
 
 export interface Note {
   id: string;
@@ -11,30 +12,34 @@ export interface Note {
   createdAt: string;
 }
 
-// Multipart uploads go through the Next.js proxy at /api/backend.
-// The proxy now streams the body directly (req.body as ReadableStream)
-// which correctly preserves multipart/form-data boundaries in Next.js 15.
-async function directUpload(path: string, form: FormData): Promise<any> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-  const res = await fetch(`/api/backend${path}`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(err.message || 'Upload failed'), { response: { status: res.status, data: err } });
-  }
-  return res.json();
-}
-
 export const slidesApi = {
   async upload(file: File): Promise<Note> {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('title', file.name.replace(/\.[^/.]+$/, ''));
-    const data = await directUpload('/files/upload', form);
-    return data.data;
+    // Step 1: Upload directly from browser to R2 (Railway can't connect to R2)
+    const { url: publicUrl } = await uploadToR2(file, { maxBytes: 50 * 1024 * 1024 });
+
+    // Step 2: Register with backend — creates note record & triggers AI processing
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    const res = await fetch('/api/backend/files/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        publicUrl,
+        originalFilename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        title: file.name.replace(/\.[^/.]+$/, ''),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw Object.assign(new Error((err as any).message || 'Upload registration failed'), {
+        response: { status: res.status, data: err },
+      });
+    }
+    const data = await res.json();
+    return (data.data ?? data) as Note;
   },
   async getAll(): Promise<Note[]> {
     const { data } = await apiClient.get('/files');

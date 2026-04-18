@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Param, Query, Body, UploadedFile, UseInterceptors, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Query, Body, UploadedFile, UseInterceptors, UseGuards, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
@@ -46,6 +46,20 @@ export class FilesController {
     if (!file) throw new BadRequestException('No audio file received');
     const text = await this.filesService.transcribeAudio(file);
     return { text };
+  }
+
+  // Called after the browser has uploaded a file directly to R2 via a pre-signed URL.
+  // Creates the note record and triggers async AI processing via CDN download.
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  registerUpload(
+    @CurrentUser('id') userId: string,
+    @Body() body: { publicUrl: string; originalFilename: string; contentType: string; title?: string },
+  ) {
+    if (!body.publicUrl || !body.originalFilename || !body.contentType) {
+      throw new BadRequestException('publicUrl, originalFilename and contentType are required');
+    }
+    return this.filesService.registerUpload(userId, body);
   }
 
   // Returns a short-lived pre-signed PUT URL for direct browser → R2 uploads.

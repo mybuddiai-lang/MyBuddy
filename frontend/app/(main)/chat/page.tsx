@@ -14,6 +14,7 @@ import { useSlides } from '@/lib/hooks/use-slides';
 import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
 import type { Message } from '@/components/chat/message-bubble';
+import { uploadToR2 } from '@/lib/api/upload';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ const FILE_ICONS: Record<string, React.ReactNode> = {
   TEXT: <FileText size={14} className="text-zinc-500" />,
 };
 
-const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB — hard cap imposed by Vercel proxy
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB — browser uploads directly to R2
 
 // ─── Attachment state ──────────────────────────────────────────────────────────
 // Upload is fire-and-forget: the file is shown immediately via a local blob URL
@@ -201,38 +202,13 @@ export default function ChatPage() {
   // re-opening the file picker.
 
   const doUpload = useCallback(async (file: File) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-    if (!token) {
-      setPendingAttachment(prev => (prev?.file === file ? { ...prev, status: 'error' } : prev));
-      return;
-    }
-
     try {
-      // POST the file as multipart FormData through the Vercel proxy to the backend.
-      // The backend uploads to R2 server-side — no browser-to-R2 CORS needed at all.
-      const form = new FormData();
-      form.append('file', file);
-
-      const res = await fetch('/api/backend/files/upload-attachment', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-
-      if (!res.ok) {
-        if (res.status === 413) throw new Error('File is too large. Maximum size is 4 MB.');
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error((errJson as any)?.message ?? `Upload failed (${res.status})`);
-      }
-
-      const json = await res.json();
-      // Backend wraps responses: { success, data, timestamp }
-      const { url, type: detectedType } = json.data ?? json;
-      if (!url) throw new Error('No URL returned from server');
-
+      // Browser uploads directly to R2 via a backend-generated pre-signed URL.
+      // Railway never connects to R2 — no TLS issues.
+      const { url, type: detectedType } = await uploadToR2(file, { maxBytes: MAX_FILE_BYTES });
       setPendingAttachment(prev =>
         prev?.file === file
-          ? { ...prev, uploadedUrl: url as string, type: (detectedType ?? prev.type) as AttachmentType, status: 'done' }
+          ? { ...prev, uploadedUrl: url, type: detectedType as AttachmentType, status: 'done' }
           : prev,
       );
     } catch (err) {
@@ -252,7 +228,7 @@ export default function ChatPage() {
       if (!file) return;
 
       if (file.size > MAX_FILE_BYTES) {
-        toast.error('File too large. Maximum size is 4 MB.');
+        toast.error('File too large. Maximum size is 25 MB.');
         return;
       }
 

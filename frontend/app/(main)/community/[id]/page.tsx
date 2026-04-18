@@ -191,8 +191,8 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 4 * 1024 * 1024) {
-        toast.error('File is too large. Maximum size is 4 MB.');
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error('File is too large. Maximum size is 25 MB.');
         e.target.value = '';
         return;
       }
@@ -860,8 +860,8 @@ export default function PodDetailPage() {
     const attachType = postAttachType;
     const capturedPreviewUrl = postAttachPreviewUrl;
 
-    if (file && file.size > 4 * 1024 * 1024) {
-      toast.error('File is too large. Maximum size is 4 MB.');
+    if (file && file.size > 25 * 1024 * 1024) {
+      toast.error('File is too large. Maximum size is 25 MB.');
       return;
     }
 
@@ -1360,8 +1360,8 @@ export default function PodDetailPage() {
             onChange={e => {
               const file = e.target.files?.[0];
               if (file) {
-                if (file.size > 4 * 1024 * 1024) {
-                  toast.error('File is too large. Maximum size is 4 MB.');
+                if (file.size > 25 * 1024 * 1024) {
+                  toast.error('File is too large. Maximum size is 25 MB.');
                   e.target.value = '';
                   return;
                 }

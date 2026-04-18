@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, InternalServerErrorException, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { FetchHttpHandler } from '@smithy/fetch-http-handler';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -43,68 +43,63 @@ export class FilesService implements OnModuleInit {
     });
   }
 
-  // On startup, ensure the R2 bucket allows PUT from any origin so the browser
-  // can upload directly using a pre-signed URL without hitting CORS errors.
+  // Railway cannot connect to r2.cloudflarestorage.com due to TLS incompatibility.
+  // Uploads now use pre-signed URLs so the browser uploads directly to R2.
+  // R2 CORS MUST be configured manually in the Cloudflare dashboard:
+  //   Bucket → Settings → CORS Policy → AllowedOrigins:["*"] AllowedMethods:["PUT"] AllowedHeaders:["*"]
   async onModuleInit() {
-    await this.ensureR2Cors().catch(err =>
-      this.logger.warn('R2 CORS setup skipped — configure AllowedMethods:[PUT] manually if direct uploads fail', err?.message),
-    );
+    this.logger.log('FilesService ready — uploads use browser-direct pre-signed URLs. Ensure R2 CORS is configured in Cloudflare dashboard.');
   }
 
-  private async ensureR2Cors() {
-    await this.s3.send(new PutBucketCorsCommand({
-      Bucket: this.bucket,
-      CORSConfiguration: {
-        CORSRules: [{
-          AllowedOrigins: ['*'],
-          AllowedMethods: ['PUT'],
-          AllowedHeaders: ['Content-Type'],
-          MaxAgeSeconds: 3600,
-        }],
-      },
-    }));
-    this.logger.log('R2 CORS configured: PUT allowed from any origin');
-  }
-
-  async upload(userId: string, file: Express.Multer.File, title?: string) {
-    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const base = file.originalname.replace(/\.[^/.]+$/, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 60);
-    const key = `uploads/${userId}/${uuidv4()}-${base}.${ext}`;
-    const fileType = this.detectFileType(file.mimetype, file.originalname);
-
-    // Upload to Cloudflare R2
-    await this.s3.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    }));
-    const fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
-
+  // Called after the browser uploads a note/slide file directly to R2.
+  // Creates the note record and triggers AI processing by fetching the file
+  // from the public CDN URL (which bypasses r2.cloudflarestorage.com).
+  async registerUpload(
+    userId: string,
+    dto: { publicUrl: string; originalFilename: string; contentType: string; title?: string },
+  ) {
+    const fileType = this.detectFileType(dto.contentType, dto.originalFilename);
     const note = await this.prisma.note.create({
       data: {
         userId,
-        title: title || file.originalname.replace(/\.[^/.]+$/, ''),
-        originalFilename: file.originalname,
-        fileUrl,
+        title: dto.title || dto.originalFilename.replace(/\.[^/.]+$/, ''),
+        originalFilename: dto.originalFilename,
+        fileUrl: dto.publicUrl,
         fileType: fileType as any,
         processingStatus: 'PENDING',
       },
     });
 
-    // Trigger async processing
-    this.processFile(note.id, file.buffer, file.mimetype).catch(err =>
-      this.logger.error(`File processing failed for ${note.id}`, err),
-    );
-
     this.analyticsService.track(userId, 'note_uploaded', {
       noteId: note.id,
-      fileType: fileType,
-      filename: file.originalname,
+      fileType,
+      filename: dto.originalFilename,
     }).catch(() => {});
 
+    // Download from the public CDN URL (not the S3 API) and process
+    this.fetchAndProcess(note.id, dto.publicUrl, dto.contentType).catch(err =>
+      this.logger.error(`fetchAndProcess failed for ${note.id}`, err),
+    );
+
     return note;
+  }
+
+  private async fetchAndProcess(noteId: string, publicUrl: string, mimetype: string) {
+    try {
+      this.logger.log(`Fetching file for AI processing: ${noteId}`);
+      const response = await fetch(publicUrl);
+      if (!response.ok) throw new Error(`CDN fetch failed: ${response.status} ${response.statusText}`);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await this.processFile(noteId, buffer, mimetype);
+    } catch (err) {
+      this.logger.error(`fetchAndProcess error for note ${noteId}`, err);
+      const failed = await this.prisma.note.update({
+        where: { id: noteId },
+        data: { processingStatus: 'FAILED' },
+        select: { userId: true },
+      }).catch(() => null);
+      if (failed) this.eventEmitter.emit('note.failed', { noteId, userId: failed.userId });
+    }
   }
 
   private async processFile(noteId: string, buffer: Buffer, mimetype: string) {

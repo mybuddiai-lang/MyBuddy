@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { uploadToR2 } from './upload';
 
 export interface Community {
   id: string;
@@ -139,36 +140,9 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Upload an attachment through the Vercel proxy to the backend.
-  // The backend handles the R2 upload server-side — no browser-to-R2 CORS needed.
-  uploadAttachment: async (file: File) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-    if (!token) throw new Error('Not authenticated');
-
-    if (file.size > 4 * 1024 * 1024) throw new Error('File is too large. Maximum size is 4 MB.');
-
-    const form = new FormData();
-    form.append('file', file);
-
-    const res = await fetch('/api/backend/files/upload-attachment', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-
-    if (!res.ok) {
-      if (res.status === 413) throw new Error('File is too large. Maximum size is 4 MB.');
-      const err = await res.json().catch(() => ({}));
-      throw new Error((err as any)?.message ?? `Upload failed (${res.status})`);
-    }
-
-    const json = await res.json();
-    // Backend wraps responses as { success, data, timestamp } via TransformInterceptor
-    const { url, type } = json.data ?? json;
-    if (!url) throw new Error('No URL returned from server');
-
-    return { url: url as string, type: type as 'IMAGE' | 'FILE' | 'VOICE' };
-  },
+  // Upload directly from the browser to R2 via a backend-generated pre-signed URL.
+  // Railway never touches R2 (TLS incompatibility), so the browser does the PUT.
+  uploadAttachment: (file: File) => uploadToR2(file),
 
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),
