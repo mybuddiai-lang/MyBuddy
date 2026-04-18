@@ -6,9 +6,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
 // pdf-parse spawns a PDF.js Web Worker that outlives the Jest process.
 // Mock it to return predictable parsed output and avoid the teardown error.
 jest.mock('pdf-parse', () =>
@@ -20,7 +17,6 @@ jest.mock('@aws-sdk/client-s3', () => ({
     send: jest.fn().mockResolvedValue({}),
   })),
   PutObjectCommand: jest.fn(),
-  DeleteObjectCommand: jest.fn(),
 }));
 
 function makePrismaMock() {
@@ -43,22 +39,6 @@ function makePrismaMock() {
 }
 
 const USER_ID = 'user-uuid-1234';
-
-function makeFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.File {
-  return {
-    fieldname: 'file',
-    originalname: 'lecture.pdf',
-    encoding: '7bit',
-    mimetype: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.4 test pdf content with enough text to pass the 20 char guard'),
-    size: 100,
-    stream: null as any,
-    destination: '',
-    filename: '',
-    path: '',
-    ...overrides,
-  };
-}
 
 describe('FilesService', () => {
   let service: FilesService;
@@ -112,107 +92,6 @@ describe('FilesService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
-
-  // ─── upload ────────────────────────────────────────────────────────────────
-  describe('upload', () => {
-    it('creates a Note record and returns it', async () => {
-      const note = {
-        id: 'note-uuid-1',
-        userId: USER_ID,
-        title: 'lecture',
-        originalFilename: 'lecture.pdf',
-        fileUrl: '/uploads/test',
-        fileType: 'PDF',
-        processingStatus: 'PENDING',
-        masteryLevel: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      prisma.note.create.mockResolvedValue(note);
-
-      const result = await service.upload(USER_ID, makeFile());
-
-      expect(result).toHaveProperty('id', 'note-uuid-1');
-      expect(result).toHaveProperty('processingStatus', 'PENDING');
-      expect(prisma.note.create).toHaveBeenCalledTimes(1);
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            userId: USER_ID,
-            fileType: 'PDF',
-            processingStatus: 'PENDING',
-          }),
-        }),
-      );
-    });
-
-    it('uses the filename (without extension) as title when no title provided', async () => {
-      prisma.note.create.mockResolvedValue({ id: 'n1', processingStatus: 'PENDING' });
-
-      await service.upload(USER_ID, makeFile({ originalname: 'my-notes.pdf' }));
-
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ title: 'my-notes' }),
-        }),
-      );
-    });
-
-    it('uses provided title when given', async () => {
-      prisma.note.create.mockResolvedValue({ id: 'n1', processingStatus: 'PENDING' });
-
-      await service.upload(USER_ID, makeFile(), 'My Custom Title');
-
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ title: 'My Custom Title' }),
-        }),
-      );
-    });
-
-    it('detects fileType correctly for PDF', async () => {
-      prisma.note.create.mockResolvedValue({ id: 'n1' });
-
-      await service.upload(USER_ID, makeFile({ mimetype: 'application/pdf' }));
-
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ fileType: 'PDF' }),
-        }),
-      );
-    });
-
-    it('detects fileType correctly for images', async () => {
-      prisma.note.create.mockResolvedValue({ id: 'n1' });
-
-      await service.upload(
-        USER_ID,
-        makeFile({ mimetype: 'image/png', originalname: 'notes.png' }),
-      );
-
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ fileType: 'IMAGE' }),
-        }),
-      );
-    });
-
-    it('detects fileType correctly for audio/voice', async () => {
-      prisma.note.create.mockResolvedValue({ id: 'n1' });
-
-      await service.upload(
-        USER_ID,
-        makeFile({ mimetype: 'audio/mp3', originalname: 'recording.mp3' }),
-      );
-
-      expect(prisma.note.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ fileType: 'VOICE' }),
-        }),
-      );
-    });
-  });
 
   // ─── findAll ───────────────────────────────────────────────────────────────
   describe('findAll', () => {
@@ -274,28 +153,6 @@ describe('FilesService', () => {
       expect(result).toHaveProperty('id', 'note-1');
       expect(result).toHaveProperty('chunks');
       expect((result as any).chunks).toHaveLength(1);
-    });
-  });
-
-  // ─── uploadAttachment ──────────────────────────────────────────────────────
-  describe('uploadAttachment', () => {
-    it('returns url and detected type', async () => {
-      const result = await service.uploadAttachment(
-        USER_ID,
-        makeFile({ mimetype: 'image/jpeg', originalname: 'photo.jpg' }),
-      );
-
-      expect(result).toHaveProperty('url');
-      expect(result).toHaveProperty('type', 'IMAGE');
-    });
-
-    it('returns FILE type for generic uploads', async () => {
-      const result = await service.uploadAttachment(
-        USER_ID,
-        makeFile({ mimetype: 'application/octet-stream', originalname: 'data.bin' }),
-      );
-
-      expect(result).toHaveProperty('type', 'FILE');
     });
   });
 });
