@@ -6,7 +6,7 @@ import { io, Socket } from 'socket.io-client';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
 
 interface GlobalSocketHandlers {
-  onReminderDue?: (reminder: { title?: string; description?: string; noteTitle?: string; type?: string; scheduledFor?: string }) => void;
+  onReminderDue?: (reminder: { id?: string; title?: string; description?: string; noteTitle?: string; type?: string; scheduledFor?: string }) => void;
   onMemberJoined?: (data: { communityId: string; communityName: string; userName: string }) => void;
   onJoinApproved?: (data: { communityId: string; communityName: string }) => void;
   onReplyOnPost?: (data: { communityId: string; postId: string; communityName: string; replyerName: string; content: string }) => void;
