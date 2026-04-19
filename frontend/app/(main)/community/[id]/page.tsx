@@ -7,14 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Send, Heart, Users, Hash, Pin, MoreHorizontal, MessageSquare,
   Paperclip, Mic, Image as ImageIcon, FileText, BarChart2, X, Plus, ChevronDown,
-  Check, LogOut, UserCog, Clock, Trash2,
+  Check, LogOut, UserCog, Clock, Trash2, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { communityApi, CommunityPost, CommunityPostReply, CommunityPoll, CommunityMember, JoinRequest } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useCommunitySocket } from '@/lib/hooks/use-community-socket';
 import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
-import { AlertCircle, RefreshCw } from 'lucide-react';
 
 // ─── Shared attachment types (mirrors chat pattern) ───────────────────────────
 
@@ -277,7 +276,6 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
   const handleAttach = (type: 'FILE' | 'IMAGE' | 'VOICE') => {
     const accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
-    setAttachType(type);
     setFileAccept(accept);
     requestAnimationFrame(() => fileRef.current?.click());
   };
@@ -1005,7 +1003,6 @@ export default function PodDetailPage() {
 
   const handlePostAttach = (type: 'FILE' | 'IMAGE' | 'VOICE') => {
     const accept = type === 'IMAGE' ? 'image/*' : type === 'VOICE' ? 'audio/*' : '*/*';
-    setPostAttachType(type);
     setPostFileAccept(accept);
     // requestAnimationFrame gives React a render cycle to update the accept
     // attribute before the file picker opens — fixes iOS Safari filtering.
