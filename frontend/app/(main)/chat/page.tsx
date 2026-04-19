@@ -304,7 +304,7 @@ export default function ChatPage() {
     // Keep the blob previewUrl alive — MessageBubble uses it until the R2 URL loads
 
     await sendMessage({
-      content: text,
+      content: text || (attachment?.name ?? ''),
       attachmentUrl: attachment?.uploadedUrl,
       attachmentType: attachment?.type,
       previewUrl: attachment?.previewUrl,
