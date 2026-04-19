@@ -190,7 +190,7 @@ export function NotificationListener() {
             icon={<Bell size={16} className="text-brand-500" />}
             title={title}
             body={body}
-            onClick={() => { toast.dismiss(t.id); navigate('/recall'); }}
+            onClick={() => { toast.dismiss(t.id); navigate(`/home?reminder=${data.id}`); }}
           />
         ),
         { duration: 6000, position: 'top-center', style: TOAST_STYLE },

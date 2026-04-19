@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X, CalendarDays } from 'lucide-react';
@@ -36,6 +36,28 @@ export default function HomePage() {
 
   const resilienceScore = stats.resilienceScore ?? user?.resilienceScore ?? 50;
   const studyStreak = stats.studyStreak ?? user?.studyStreak ?? 0;
+
+  const [highlightedReminderId, setHighlightedReminderId] = useState<string | null>(null);
+  const [showAllReminders, setShowAllReminders] = useState(false);
+
+  // Read ?reminder=<id> from URL on mount — client-side only, no Suspense needed
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('reminder');
+    if (id) {
+      setHighlightedReminderId(id);
+      setShowAllReminders(true);
+    }
+  }, []);
+
+  // Scroll to + briefly ring-highlight the targeted reminder once it renders
+  useEffect(() => {
+    if (!highlightedReminderId) return;
+    const el = document.getElementById(`reminder-${highlightedReminderId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightedReminderId(null), 3000);
+    return () => clearTimeout(t);
+  }, [highlightedReminderId, dueReminders]);
 
   const { examBannerHidden, setExamBannerHidden } = useUIStore();
   const dismissExamBanner = () => setExamBannerHidden(true);
@@ -226,33 +248,48 @@ export default function HomePage() {
               <Bell size={14} className="text-zinc-500 dark:text-zinc-400" />
               <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Due Today</p>
             </div>
-            <Link href="/recall" className="text-xs text-brand-600 font-medium">See all</Link>
+            {dueReminders.length > 3 && !showAllReminders && (
+              <button
+                onClick={() => setShowAllReminders(true)}
+                className="text-xs text-brand-600 dark:text-brand-400 font-medium"
+              >
+                See all ({dueReminders.length})
+              </button>
+            )}
           </div>
           <div className="space-y-2">
-            {dueReminders.slice(0, 3).map((r, i) => (
-              <motion.div
-                key={r.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.06 }}
-              >
-                <Link
-                  href="/recall"
-                  className="flex items-center gap-3 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 border border-zinc-100 dark:border-zinc-800 shadow-card hover:border-brand-200 dark:hover:border-brand-700 hover:bg-brand-50/30 dark:hover:bg-brand-900/20 transition"
+            {(showAllReminders ? dueReminders : dueReminders.slice(0, 3)).map((r, i) => {
+              const isHighlighted = r.id === highlightedReminderId;
+              return (
+                <motion.div
+                  key={r.id}
+                  id={`reminder-${r.id}`}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center shrink-0">
-                    <Zap size={14} className="text-brand-600 dark:text-brand-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                      {new Date(r.scheduledAt) <= new Date() ? 'Due now' : 'Due soon'}
-                    </p>
-                  </div>
-                  <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                </Link>
-              </motion.div>
-            ))}
+                  <Link
+                    href={`/home?reminder=${r.id}`}
+                    className={`flex items-center gap-3 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 border shadow-card hover:bg-brand-50/30 dark:hover:bg-brand-900/20 transition ${
+                      isHighlighted
+                        ? 'border-brand-400 dark:border-brand-500 ring-2 ring-brand-400/40 dark:ring-brand-500/40'
+                        : 'border-zinc-100 dark:border-zinc-800 hover:border-brand-200 dark:hover:border-brand-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center shrink-0">
+                      <Zap size={14} className="text-brand-600 dark:text-brand-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                        {new Date(r.scheduledAt) <= new Date() ? 'Due now' : 'Due soon'}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
+                  </Link>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       )}

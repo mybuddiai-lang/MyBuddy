@@ -32,7 +32,7 @@ export class EventsListener {
       await this.pushService.sendToUser(reminder.userId, {
         title: `📚 ${reminder.title}`,
         body: reminder.description || 'Time to review your notes!',
-        url: reminder.type === 'RECALL' ? '/recall' : '/home',
+        url: `/home?reminder=${reminder.id}`,
         tag: `reminder-${reminder.id}`,
       });
     } catch (err) {
