@@ -14,6 +14,91 @@ import { useAuthStore } from '@/lib/store/auth.store';
 import { useCommunitySocket } from '@/lib/hooks/use-community-socket';
 import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+
+// ─── Shared attachment types (mirrors chat pattern) ───────────────────────────
+
+type AttachmentType = 'IMAGE' | 'FILE' | 'VOICE';
+type UploadStatus = 'uploading' | 'done' | 'error';
+
+interface PendingAttachment {
+  file: File;
+  name: string;
+  type: AttachmentType;
+  previewUrl?: string;
+  uploadedUrl?: string;
+  status: UploadStatus;
+}
+
+// ─── Pending attachment preview card (same pattern as chat) ───────────────────
+
+function AttachmentPreviewCard({
+  attachment,
+  onRemove,
+  onRetry,
+  compact = false,
+}: {
+  attachment: PendingAttachment;
+  onRemove: () => void;
+  onRetry: () => void;
+  compact?: boolean;
+}) {
+  const { type, previewUrl, name, status } = attachment;
+  const uploading = status === 'uploading';
+  const failed = status === 'error';
+  const maxH = compact ? 'max-h-28' : 'max-h-36';
+  const maxW = compact ? 'max-w-[200px]' : 'max-w-[240px]';
+
+  return (
+    <div className="relative inline-block">
+      {type === 'IMAGE' && previewUrl ? (
+        <div className="relative rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewUrl}
+            alt={name}
+            className={`block ${maxH} ${maxW} w-auto object-cover transition-opacity duration-200 ${uploading || failed ? 'opacity-60' : 'opacity-100'}`}
+          />
+          {uploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="w-6 h-6 border-[3px] border-white/70 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
+          {failed && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/40">
+              <AlertCircle size={16} className="text-white" />
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1 text-xs text-white font-medium bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition"
+              >
+                <RefreshCw size={10} /> Retry
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+          <Paperclip size={compact ? 11 : 13} className="text-zinc-400 shrink-0" />
+          <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{name}</span>
+          {uploading && (
+            <div className="w-3 h-3 border-2 border-zinc-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
+          )}
+          {failed && (
+            <button onClick={onRetry} title="Retry">
+              <RefreshCw size={11} className="text-red-400 hover:text-red-600 transition shrink-0" />
+            </button>
+          )}
+        </div>
+      )}
+      <button
+        onClick={onRemove}
+        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-600 transition"
+      >
+        <X size={10} className="text-white" />
+      </button>
+    </div>
+  );
+}
 
 interface PodMeta {
   name: string;
@@ -153,19 +238,28 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [replyText, setReplyText] = useState('');
-  const [attachFile, setAttachFile] = useState<File | null>(null);
-  const [attachType, setAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
-  const [attachPreviewUrl, setAttachPreviewUrl] = useState<string | null>(null);
-  const [attachPreviewError, setAttachPreviewError] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [fileAccept, setFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const doUpload = useCallback(async (file: File) => {
+    try {
+      const { url, type: detectedType } = await communityApi.uploadAttachment(file);
+      setPendingAttachment(prev =>
+        prev?.file === file ? { ...prev, uploadedUrl: url, type: detectedType, status: 'done' } : prev,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      toast.error(msg);
+      setPendingAttachment(prev => prev?.file === file ? { ...prev, status: 'error' } : prev);
+    }
+  }, []);
+
   const { isRecording: isMicActive, recordingTime: micTime, toggleRecording } = useVoiceRecorder((file) => {
-    setAttachFile(file);
-    setAttachType('VOICE');
-    if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
-    setAttachPreviewUrl(null);
+    setPendingAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+    setPendingAttachment({ file, name: file.name, type: 'VOICE', status: 'uploading' });
+    doUpload(file);
   });
 
   const handleMic = async () => {
@@ -190,43 +284,34 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 25 * 1024 * 1024) {
-        toast.error('File is too large. Maximum size is 25 MB.');
-        e.target.value = '';
-        return;
-      }
-      setAttachFile(file);
-      setAttachPreviewError(false);
-      if (file.type.startsWith('image/')) {
-        if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
-        setAttachPreviewUrl(URL.createObjectURL(file));
-      } else {
-        if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
-        setAttachPreviewUrl(null);
-      }
-    }
     e.target.value = '';
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error('File is too large. Maximum size is 25 MB.');
+      return;
+    }
+    setPendingAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+    const type: AttachmentType = file.type.startsWith('image/') ? 'IMAGE' : file.type.startsWith('audio/') ? 'VOICE' : 'FILE';
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+    setPendingAttachment({ file, name: file.name, type, previewUrl, status: 'uploading' });
+    doUpload(file);
   };
 
   const handleSend = async () => {
-    if (!replyText.trim() && !attachFile) return;
+    if (pendingAttachment?.status === 'uploading') {
+      toast('Upload in progress — please wait.', { icon: '⏳' });
+      return;
+    }
+    if (pendingAttachment?.status === 'error') {
+      toast.error('Attachment upload failed — retry or remove it before sending.');
+      return;
+    }
+    if (!replyText.trim() && !pendingAttachment) return;
     setSending(true);
 
-    // Upload file to Cloudflare R2 first
-    let resolvedUrl: string | undefined;
-    let resolvedType = attachType;
-    if (attachFile) {
-      try {
-        const uploadRes = await communityApi.uploadAttachment(attachFile);
-        resolvedUrl = uploadRes.url;
-        resolvedType = uploadRes.type ?? attachType;
-      } catch {
-        toast.error('File upload failed. Please try again.');
-        setSending(false);
-        return;
-      }
-    }
+    const attachment = pendingAttachment;
+    const resolvedUrl = attachment?.uploadedUrl;
+    const resolvedType = attachment?.type;
 
     const optimistic: CommunityPostReply = {
       id: `local-${Date.now()}`,
@@ -235,19 +320,13 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       author: { id: userId, name: 'You' },
       content: replyText.trim(),
       attachmentUrl: resolvedUrl,
-      attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
-      // Show blob URL immediately for the replier; falls back to remote URL for others
-      previewUrl: resolvedType === 'IMAGE' ? attachPreviewUrl ?? undefined : undefined,
+      attachmentType: resolvedUrl ? resolvedType : undefined,
+      previewUrl: resolvedType === 'IMAGE' ? attachment?.previewUrl : undefined,
       createdAt: new Date().toISOString(),
     };
     setReplies(prev => [...prev, optimistic]);
     setReplyText('');
-    setAttachFile(null);
-    setAttachType(null);
-    // Do NOT revoke the blob URL here — the optimistic reply still holds a reference
-    // to previewUrl and needs it to display the image. It will be replaced by the
-    // remote R2 URL once the server confirms the reply.
-    setAttachPreviewUrl(null);
+    setPendingAttachment(null);
 
     try {
       const res = await communityApi.createReply(communityId, postId, {
@@ -303,36 +382,17 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       ))}
 
       {/* Pending attachment preview */}
-      {attachFile && (
-        <div className="relative inline-block">
-          {attachPreviewUrl && !attachPreviewError ? (
-            <div className="relative rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={attachPreviewUrl}
-                alt={attachFile.name}
-                className="block max-h-28 max-w-[200px] w-auto object-cover"
-                onError={() => setAttachPreviewError(true)}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
-              <Paperclip size={11} className="text-zinc-400 shrink-0" />
-              <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{attachFile.name}</span>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
-              setAttachPreviewUrl(null);
-              setAttachFile(null);
-              setAttachType(null);
-            }}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-600 transition"
-          >
-            <X size={10} className="text-white" />
-          </button>
-        </div>
+      {pendingAttachment && (
+        <AttachmentPreviewCard
+          attachment={pendingAttachment}
+          compact
+          onRemove={() => setPendingAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; })}
+          onRetry={() => {
+            if (!pendingAttachment) return;
+            setPendingAttachment(prev => prev ? { ...prev, status: 'uploading' } : null);
+            doUpload(pendingAttachment.file);
+          }}
+        />
       )}
 
       {/* Reply compose */}
@@ -372,12 +432,12 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
           </button>
           <button
             onClick={handleSend}
-            disabled={(!replyText.trim() && !attachFile) || sending}
+            disabled={(!replyText.trim() && !pendingAttachment) || sending}
             className="w-6 h-6 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center transition"
           >
             {sending
               ? <div className="w-2.5 h-2.5 border border-white/40 border-t-white rounded-full animate-spin" />
-              : <Send size={10} className={replyText.trim() || attachFile ? 'text-white' : 'text-zinc-400'} />
+              : <Send size={10} className={replyText.trim() || pendingAttachment ? 'text-white' : 'text-zinc-400'} />
             }
           </button>
         </div>
@@ -685,10 +745,7 @@ export default function PodDetailPage() {
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [newPost, setNewPost] = useState('');
-  const [postAttachFile, setPostAttachFile] = useState<File | null>(null);
-  const [postAttachType, setPostAttachType] = useState<'FILE' | 'IMAGE' | 'VOICE' | null>(null);
-  const [postAttachPreviewUrl, setPostAttachPreviewUrl] = useState<string | null>(null);
-  const [postAttachPreviewError, setPostAttachPreviewError] = useState(false);
+  const [pendingPostAttachment, setPendingPostAttachment] = useState<PendingAttachment | null>(null);
   // React-controlled accept so the file picker filters correctly on iOS Safari
   const [postFileAccept, setPostFileAccept] = useState('image/*,audio/*,*/*');
   const [sending, setSending] = useState(false);
@@ -702,11 +759,23 @@ export default function PodDetailPage() {
   // true = user is at (or near) the bottom → auto-scroll new messages into view
   const isAtBottom = useRef(true);
 
+  const doPostUpload = useCallback(async (file: File) => {
+    try {
+      const { url, type: detectedType } = await communityApi.uploadAttachment(file);
+      setPendingPostAttachment(prev =>
+        prev?.file === file ? { ...prev, uploadedUrl: url, type: detectedType, status: 'done' } : prev,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      toast.error(msg);
+      setPendingPostAttachment(prev => prev?.file === file ? { ...prev, status: 'error' } : prev);
+    }
+  }, []);
+
   const { isRecording: isPostMicActive, recordingTime: postMicTime, toggleRecording: togglePostMic } = useVoiceRecorder((file) => {
-    setPostAttachFile(file);
-    setPostAttachType('VOICE');
-    if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
-    setPostAttachPreviewUrl(null);
+    setPendingPostAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+    setPendingPostAttachment({ file, name: file.name, type: 'VOICE', status: 'uploading' });
+    doPostUpload(file);
   });
 
   const handlePostMic = async () => {
@@ -720,10 +789,10 @@ export default function PodDetailPage() {
     isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
-  // Revoke pending image preview blob URL on cleanup
+  // Revoke pending attachment blob URL on cleanup
   useEffect(() => {
-    return () => { if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl); };
-  }, [postAttachPreviewUrl]);
+    return () => { setPendingPostAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; }); };
+  }, []);
 
   // Auto-scroll to latest post whenever the list changes, but only if the user
   // is already at (or near) the bottom — so manual upward scrolling isn't hijacked
@@ -861,34 +930,22 @@ export default function PodDetailPage() {
   };
 
   const handlePost = async () => {
-    if (!newPost.trim() && !postAttachFile) return;
-    // Capture volatile state now — before any awaits — to avoid mid-async stale reads
-    const content = newPost.trim();
-    const file = postAttachFile;
-    const attachType = postAttachType;
-    const capturedPreviewUrl = postAttachPreviewUrl;
-
-    if (file && file.size > 25 * 1024 * 1024) {
-      toast.error('File is too large. Maximum size is 25 MB.');
+    if (pendingPostAttachment?.status === 'uploading') {
+      toast('Upload in progress — please wait.', { icon: '⏳' });
       return;
     }
+    if (pendingPostAttachment?.status === 'error') {
+      toast.error('Attachment upload failed — retry or remove it before posting.');
+      return;
+    }
+    if (!newPost.trim() && !pendingPostAttachment) return;
+
+    const content = newPost.trim();
+    const attachment = pendingPostAttachment;
+    const resolvedUrl = attachment?.uploadedUrl;
+    const resolvedType = attachment?.type;
 
     setSending(true);
-
-    // Upload file to backend first, then create the post with the real URL
-    let resolvedUrl: string | undefined;
-    let resolvedType = attachType;
-    if (file) {
-      try {
-        const uploadRes = await communityApi.uploadAttachment(file);
-        resolvedUrl = uploadRes.url;
-        resolvedType = uploadRes.type ?? attachType;
-      } catch {
-        toast.error('File upload failed. Please try again.');
-        setSending(false);
-        return;
-      }
-    }
 
     const optimistic: any = {
       id: `local-${Date.now()}`,
@@ -896,26 +953,19 @@ export default function PodDetailPage() {
       author: { id: user?.id || '', name: user?.name || 'You' },
       content,
       attachmentUrl: resolvedUrl,
-      attachmentType: resolvedUrl ? (resolvedType ?? undefined) : undefined,
-      // Pass the captured blob previewUrl so the image renders instantly for the poster
-      // while the remote URL loads. Other members always receive the remote URL.
-      previewUrl: resolvedType === 'IMAGE' ? capturedPreviewUrl ?? undefined : undefined,
+      attachmentType: resolvedUrl ? resolvedType : undefined,
+      previewUrl: resolvedType === 'IMAGE' ? attachment?.previewUrl : undefined,
       likesCount: 0,
       commentsCount: 0,
       repliesCount: 0,
       liked: false,
       createdAt: new Date().toISOString(),
     };
-    // Always scroll to bottom when the user themselves posts
     isAtBottom.current = true;
     setPosts(prev => [...prev, optimistic]);
     setNewPost('');
     if (postTextareaRef.current) postTextareaRef.current.style.height = '24px';
-    setPostAttachFile(null);
-    setPostAttachType(null);
-    // Do NOT revoke the blob URL here — the optimistic post still holds a reference
-    // to previewUrl. It will be replaced by the remote R2 URL once the server confirms.
-    setPostAttachPreviewUrl(null);
+    setPendingPostAttachment(null);
 
     try {
       const res = await communityApi.createPost(id, {
@@ -1286,36 +1336,16 @@ export default function PodDetailPage() {
       {activeTab === 'posts' && (
         <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-2">
           {/* Pending attachment preview */}
-          {postAttachFile && (
-            <div className="relative inline-block">
-              {postAttachPreviewUrl && !postAttachPreviewError ? (
-                <div className="relative rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={postAttachPreviewUrl}
-                    alt={postAttachFile.name}
-                    className="block max-h-36 max-w-[240px] w-auto object-cover"
-                    onError={() => setPostAttachPreviewError(true)}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
-                  <Paperclip size={13} className="text-zinc-400 shrink-0" />
-                  <span className="text-xs text-zinc-600 font-medium truncate max-w-[180px]">{postAttachFile.name}</span>
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
-                  setPostAttachPreviewUrl(null);
-                  setPostAttachFile(null);
-                  setPostAttachType(null);
-                }}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-600 transition"
-              >
-                <X size={10} className="text-white" />
-              </button>
-            </div>
+          {pendingPostAttachment && (
+            <AttachmentPreviewCard
+              attachment={pendingPostAttachment}
+              onRemove={() => setPendingPostAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; })}
+              onRetry={() => {
+                if (!pendingPostAttachment) return;
+                setPendingPostAttachment(prev => prev ? { ...prev, status: 'uploading' } : null);
+                doPostUpload(pendingPostAttachment.file);
+              }}
+            />
           )}
 
           <div className="flex items-center gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
@@ -1358,12 +1388,12 @@ export default function PodDetailPage() {
               </button>
               <button
                 onClick={handlePost}
-                disabled={(!newPost.trim() && !postAttachFile) || sending}
+                disabled={(!newPost.trim() && !pendingPostAttachment) || sending}
                 className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center transition"
               >
                 {sending
                   ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  : <Send size={13} className={(newPost.trim() || postAttachFile) ? 'text-white' : 'text-zinc-400'} />
+                  : <Send size={13} className={(newPost.trim() || pendingPostAttachment) ? 'text-white' : 'text-zinc-400'} />
                 }
               </button>
             </div>
@@ -1375,23 +1405,17 @@ export default function PodDetailPage() {
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0];
-              if (file) {
-                if (file.size > 25 * 1024 * 1024) {
-                  toast.error('File is too large. Maximum size is 25 MB.');
-                  e.target.value = '';
-                  return;
-                }
-                setPostAttachFile(file);
-                setPostAttachPreviewError(false);
-                if (file.type.startsWith('image/')) {
-                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
-                  setPostAttachPreviewUrl(URL.createObjectURL(file));
-                } else {
-                  if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
-                  setPostAttachPreviewUrl(null);
-                }
-              }
               e.target.value = '';
+              if (!file) return;
+              if (file.size > 25 * 1024 * 1024) {
+                toast.error('File is too large. Maximum size is 25 MB.');
+                return;
+              }
+              setPendingPostAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+              const type: AttachmentType = file.type.startsWith('image/') ? 'IMAGE' : file.type.startsWith('audio/') ? 'VOICE' : 'FILE';
+              const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+              setPendingPostAttachment({ file, name: file.name, type, previewUrl, status: 'uploading' });
+              doPostUpload(file);
             }}
           />
         </div>
