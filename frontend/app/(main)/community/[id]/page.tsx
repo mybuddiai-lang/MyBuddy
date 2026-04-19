@@ -304,15 +304,23 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
       {/* Pending attachment preview */}
       {attachFile && (
-        <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+        <div className="relative inline-block">
           {attachPreviewUrl && !attachPreviewError ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={attachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0"
-              onError={() => setAttachPreviewError(true)} />
+            <div className="relative rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachPreviewUrl}
+                alt={attachFile.name}
+                className="block max-h-28 max-w-[200px] w-auto object-cover"
+                onError={() => setAttachPreviewError(true)}
+              />
+            </div>
           ) : (
-            <Paperclip size={11} className="text-zinc-400 shrink-0" />
+            <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+              <Paperclip size={11} className="text-zinc-400 shrink-0" />
+              <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{attachFile.name}</span>
+            </div>
           )}
-          <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{attachFile.name}</span>
           <button
             onClick={() => {
               if (attachPreviewUrl) URL.revokeObjectURL(attachPreviewUrl);
@@ -320,9 +328,9 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
               setAttachFile(null);
               setAttachType(null);
             }}
-            className="ml-auto text-zinc-400 hover:text-red-400 transition"
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-600 transition"
           >
-            <X size={11} />
+            <X size={10} className="text-white" />
           </button>
         </div>
       )}
@@ -1279,15 +1287,23 @@ export default function PodDetailPage() {
         <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-2">
           {/* Pending attachment preview */}
           {postAttachFile && (
-            <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+            <div className="relative inline-block">
               {postAttachPreviewUrl && !postAttachPreviewError ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={postAttachPreviewUrl} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0"
-                  onError={() => setPostAttachPreviewError(true)} />
+                <div className="relative rounded-2xl overflow-hidden border border-zinc-200 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={postAttachPreviewUrl}
+                    alt={postAttachFile.name}
+                    className="block max-h-36 max-w-[240px] w-auto object-cover"
+                    onError={() => setPostAttachPreviewError(true)}
+                  />
+                </div>
               ) : (
-                <Paperclip size={13} className="text-zinc-400 shrink-0" />
+                <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+                  <Paperclip size={13} className="text-zinc-400 shrink-0" />
+                  <span className="text-xs text-zinc-600 font-medium truncate max-w-[180px]">{postAttachFile.name}</span>
+                </div>
               )}
-              <span className="text-xs text-zinc-600 font-medium truncate max-w-[180px]">{postAttachFile.name}</span>
               <button
                 onClick={() => {
                   if (postAttachPreviewUrl) URL.revokeObjectURL(postAttachPreviewUrl);
@@ -1295,9 +1311,9 @@ export default function PodDetailPage() {
                   setPostAttachFile(null);
                   setPostAttachType(null);
                 }}
-                className="ml-auto text-zinc-400 hover:text-red-400 transition"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-600 transition"
               >
-                <X size={13} />
+                <X size={10} className="text-white" />
               </button>
             </div>
           )}
