@@ -589,6 +589,28 @@ export class CommunityService {
     return poll;
   }
 
+  async deletePoll(communityId: string, pollId: string, userId: string) {
+    const [poll, membership, user] = await Promise.all([
+      this.prisma.communityPoll.findFirst({ where: { id: pollId, communityId } }),
+      this.prisma.communityMember.findFirst({ where: { communityId, userId } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+    ]);
+
+    if (!poll) throw new NotFoundException('Poll not found');
+
+    const canDelete =
+      poll.authorId === userId ||
+      user?.role === 'ADMIN' ||
+      membership?.role === 'ADMIN' ||
+      membership?.role === 'MODERATOR';
+
+    if (!canDelete) throw new ForbiddenException('Not authorized to delete this poll');
+
+    await this.prisma.communityPoll.delete({ where: { id: pollId } });
+    this.gateway.broadcastToCommunity(communityId, 'community:delete_poll', { pollId });
+    return { deleted: true };
+  }
+
   async votePoll(pollId: string, optionId: string, userId: string) {
     const poll = await this.prisma.communityPoll.findUnique({
       where: { id: pollId },

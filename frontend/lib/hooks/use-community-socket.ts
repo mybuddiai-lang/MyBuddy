@@ -13,6 +13,7 @@ interface CommunitySocketHandlers {
   onDeleteReply?: (data: { postId: string; replyId: string }) => void;
   onNewPoll?: (poll: CommunityPoll) => void;
   onPollUpdate?: (poll: CommunityPoll) => void;
+  onDeletePoll?: (data: { pollId: string }) => void;
 }
 
 export function useCommunitySocket(communityId: string, handlers: CommunitySocketHandlers) {
@@ -66,6 +67,10 @@ export function useCommunitySocket(communityId: string, handlers: CommunitySocke
 
     socket.on('community:poll_update', (poll: CommunityPoll) => {
       handlersRef.current.onPollUpdate?.(poll);
+    });
+
+    socket.on('community:delete_poll', (data: { pollId: string }) => {
+      handlersRef.current.onDeletePoll?.(data);
     });
 
     return () => {

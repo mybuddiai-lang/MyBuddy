@@ -76,9 +76,9 @@ function AttachmentPreviewCard({
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-2 bg-zinc-100 rounded-xl px-3 py-2 border border-zinc-200">
+        <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl px-3 py-2 border border-zinc-200 dark:border-zinc-700">
           <Paperclip size={compact ? 11 : 13} className="text-zinc-400 shrink-0" />
-          <span className="text-xs text-zinc-600 font-medium truncate max-w-[160px]">{name}</span>
+          <span className="text-xs text-zinc-600 dark:text-zinc-300 font-medium truncate max-w-[160px]">{name}</span>
           {uploading && (
             <div className="w-3 h-3 border-2 border-zinc-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
           )}
@@ -211,7 +211,7 @@ function AttachmentPreview({ url, previewUrl, type }: {
 
   if (type === 'IMAGE' && imgError) {
     return (
-      <div className="mt-2 flex items-center gap-2 text-xs text-zinc-400 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100">
+      <div className="mt-2 flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-700/50 rounded-lg px-3 py-2 border border-zinc-100 dark:border-zinc-700">
         <span>🖼️ Image unavailable</span>
       </div>
     );
@@ -224,7 +224,7 @@ function AttachmentPreview({ url, previewUrl, type }: {
   const filename = url.split('/').pop()?.split('?')[0] || 'File';
   return (
     <a href={url} target="_blank" rel="noopener noreferrer"
-      className="mt-2 flex items-center gap-2 text-xs text-brand-600 bg-brand-50 rounded-lg px-3 py-2 border border-brand-100 w-fit">
+      className="mt-2 flex items-center gap-2 text-xs text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 rounded-lg px-3 py-2 border border-brand-100 dark:border-brand-800 w-fit">
       <FileText size={13} /> {filename}
     </a>
   );
@@ -354,30 +354,47 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   };
 
   return (
-    <div className="mt-3 ml-12 space-y-2">
-      {loading && <p className="text-xs text-zinc-400">Loading replies…</p>}
-      {loadError && <p className="text-xs text-red-400">Could not load replies. Please try again.</p>}
-      {replies.map(reply => (
-        <div key={reply.id} className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-500 shrink-0">
-            {nameToInitials(reply.author?.name || '?')}
-          </div>
-          <div className="flex-1 bg-zinc-50 rounded-xl px-3 py-2 border border-zinc-100">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-zinc-700">{reply.author?.name}</span>
-              <span className="text-[10px] text-zinc-400">{relativeTime(reply.createdAt)}</span>
-            </div>
-            <p className="text-xs text-zinc-600 leading-relaxed mt-0.5">{reply.content}</p>
-            {(reply.attachmentUrl || reply.previewUrl) && (
-              <AttachmentPreview
-                url={reply.attachmentUrl ?? ''}
-                previewUrl={reply.previewUrl}
-                type={reply.attachmentType}
-              />
+    <div className="mt-3 space-y-2 px-2">
+      {loading && <p className="text-xs text-zinc-400 dark:text-zinc-500 pl-2">Loading replies…</p>}
+      {loadError && <p className="text-xs text-red-400 pl-2">Could not load replies. Please try again.</p>}
+      {replies.map(reply => {
+        const isOwn = reply.authorId === userId;
+        return (
+          <div key={reply.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end gap-1.5`}>
+            {!isOwn && (
+              <div className="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-500 dark:text-zinc-300 shrink-0">
+                {nameToInitials(reply.author?.name || '?')}
+              </div>
             )}
+            <div className={`flex flex-col max-w-[78%] ${isOwn ? 'items-end' : 'items-start'}`}>
+              {!isOwn && (
+                <span className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 mb-0.5 px-1">
+                  {reply.author?.name}
+                </span>
+              )}
+              <div className={`rounded-xl px-3 py-2 ${
+                isOwn
+                  ? 'bg-brand-500 rounded-tr-sm'
+                  : 'bg-white dark:bg-zinc-700 rounded-tl-sm border border-zinc-100 dark:border-zinc-600'
+              }`}>
+                <p className={`text-xs leading-relaxed ${isOwn ? 'text-white' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                  {reply.content}
+                </p>
+                {(reply.attachmentUrl || reply.previewUrl) && (
+                  <AttachmentPreview
+                    url={reply.attachmentUrl ?? ''}
+                    previewUrl={reply.previewUrl}
+                    type={reply.attachmentType}
+                  />
+                )}
+              </div>
+              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-0.5 px-1">
+                {relativeTime(reply.createdAt)}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Pending attachment preview */}
       {pendingAttachment && (
@@ -394,12 +411,12 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
       )}
 
       {/* Reply compose */}
-      <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-brand-300 transition">
+      <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
         {isMicActive ? (
           <div className="flex-1 flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-xs font-mono text-red-500 tabular-nums">{micTime}</span>
-            <span className="text-[10px] text-zinc-400">Tap mic to stop</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Tap mic to stop</span>
           </div>
         ) : (
           <textarea
@@ -408,30 +425,30 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="Write a reply…"
             rows={1}
-            className="flex-1 bg-transparent text-xs text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+            className="flex-1 bg-transparent text-xs text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed overflow-hidden"
             style={{ height: '20px' }}
           />
         )}
 
         {/* Attach button group */}
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => handleAttach('IMAGE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
+          <button onClick={() => handleAttach('IMAGE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
             <ImageIcon size={13} />
           </button>
           <button
             onClick={handleMic}
-            className={`p-1 rounded-lg transition ${isMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-100'}`}
+            className={`p-1 rounded-lg transition ${isMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-100 dark:hover:bg-zinc-700'}`}
             title={isMicActive ? 'Stop recording' : 'Record voice note'}
           >
             <Mic size={13} className={isMicActive ? 'animate-pulse' : ''} />
           </button>
-          <button onClick={() => handleAttach('FILE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
+          <button onClick={() => handleAttach('FILE')} disabled={isMicActive} className="p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
             <Paperclip size={13} />
           </button>
           <button
             onClick={handleSend}
             disabled={(!replyText.trim() && !pendingAttachment) || sending}
-            className="w-6 h-6 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center transition"
+            className="w-6 h-6 rounded-full bg-brand-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-700 flex items-center justify-center transition"
           >
             {sending
               ? <div className="w-2.5 h-2.5 border border-white/40 border-t-white rounded-full animate-spin" />
@@ -448,7 +465,15 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
 
 // ─── Poll card ────────────────────────────────────────────────────────────────
 
-function PollCard({ poll, communityId, onVote }: { poll: CommunityPoll; communityId: string; onVote: (pollId: string, optionId: string) => void }) {
+function PollCard({
+  poll, communityId, onVote, onDelete, canDelete,
+}: {
+  poll: CommunityPoll;
+  communityId: string;
+  onVote: (pollId: string, optionId: string) => void;
+  onDelete?: (pollId: string) => void;
+  canDelete?: boolean;
+}) {
   const totalVotes = poll.options.reduce((s, o) => s + o.votesCount, 0);
   const hasVoted = poll.myVotedOptionId !== null;
   const expired = poll.endsAt ? new Date(poll.endsAt) < new Date() : false;
@@ -457,19 +482,31 @@ function PollCard({ poll, communityId, onVote }: { poll: CommunityPoll; communit
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card"
+      className="bg-white dark:bg-zinc-800 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-700 shadow-card"
     >
       <div className="flex items-center gap-2 mb-3">
         <BarChart2 size={14} className="text-brand-500" />
-        <span className="text-xs font-semibold text-brand-600">Poll</span>
-        {expired && <span className="text-[10px] text-zinc-400 ml-auto">Ended</span>}
-        {!expired && poll.endsAt && (
-          <span className="text-[10px] text-zinc-400 ml-auto flex items-center gap-1">
-            <Clock size={9} /> Ends {relativeTime(poll.endsAt)}
-          </span>
-        )}
+        <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Poll</span>
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">· {poll.author?.name}</span>
+        <div className="ml-auto flex items-center gap-2">
+          {expired && <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Ended</span>}
+          {!expired && poll.endsAt && (
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
+              <Clock size={9} /> Ends {relativeTime(poll.endsAt)}
+            </span>
+          )}
+          {canDelete && onDelete && (
+            <button
+              onClick={() => onDelete(poll.id)}
+              className="p-0.5 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition"
+              title="Delete poll"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
       </div>
-      <p className="text-sm font-semibold text-zinc-800 mb-3">{poll.question}</p>
+      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mb-3">{poll.question}</p>
 
       <div className="space-y-2">
         {poll.options.map(option => {
@@ -483,21 +520,23 @@ function PollCard({ poll, communityId, onVote }: { poll: CommunityPoll; communit
               className="w-full text-left relative"
             >
               <div className={`relative z-10 flex items-center justify-between px-3 py-2 rounded-xl border transition ${
-                isMyVote ? 'border-brand-400 bg-brand-50' : 'border-zinc-200 bg-zinc-50 hover:border-brand-300'
+                isMyVote
+                  ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/30 dark:border-brand-600'
+                  : 'border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/50 hover:border-brand-300 dark:hover:border-brand-500'
               } ${hasVoted || expired ? 'cursor-default' : 'cursor-pointer'}`}>
                 {/* Progress bar */}
                 {hasVoted && (
                   <div
-                    className="absolute inset-0 rounded-xl bg-brand-100 opacity-40 transition-all"
+                    className="absolute inset-0 rounded-xl bg-brand-100 dark:bg-brand-700/30 opacity-40 transition-all"
                     style={{ width: `${pct}%` }}
                   />
                 )}
-                <span className={`relative text-xs font-medium ${isMyVote ? 'text-brand-700' : 'text-zinc-700'}`}>
+                <span className={`relative text-xs font-medium ${isMyVote ? 'text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-200'}`}>
                   {option.text}
-                  {isMyVote && <Check size={11} className="inline ml-1 text-brand-500" />}
+                  {isMyVote && <Check size={11} className="inline ml-1 text-brand-500 dark:text-brand-400" />}
                 </span>
                 {hasVoted && (
-                  <span className="relative text-xs font-semibold text-zinc-500">{pct}%</span>
+                  <span className="relative text-xs font-semibold text-zinc-500 dark:text-zinc-400">{pct}%</span>
                 )}
               </div>
             </button>
@@ -505,7 +544,7 @@ function PollCard({ poll, communityId, onVote }: { poll: CommunityPoll; communit
         })}
       </div>
 
-      <p className="text-[10px] text-zinc-400 mt-2 text-right">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2 text-right">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
     </motion.div>
   );
 }
@@ -855,6 +894,9 @@ export default function PodDetailPage() {
     onPollUpdate: (updatedPoll) => {
       setPolls(prev => prev.map(p => p.id === updatedPoll.id ? updatedPoll : p));
     },
+    onDeletePoll: ({ pollId }) => {
+      setPolls(prev => prev.filter(p => p.id !== pollId));
+    },
   });
 
   // Load data
@@ -1080,6 +1122,16 @@ export default function PodDetailPage() {
     }
   };
 
+  const handleDeletePoll = async (pollId: string) => {
+    setPolls(prev => prev.filter(p => p.id !== pollId)); // optimistic
+    try {
+      await communityApi.deletePoll(id, pollId);
+    } catch {
+      toast.error('Could not delete poll');
+      communityApi.getPolls(id).then((res: any) => setPolls(res?.data?.data ?? [])).catch(() => {});
+    }
+  };
+
   return (
     <div
       className="flex flex-col bg-white dark:bg-zinc-950"
@@ -1092,25 +1144,25 @@ export default function PodDetailPage() {
       }}
     >
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-zinc-100 flex items-center gap-3 shrink-0">
-        <button onClick={() => router.back()} className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition shrink-0">
-          <ArrowLeft size={16} className="text-zinc-600" />
+      <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 shrink-0">
+        <button onClick={() => router.back()} className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition shrink-0">
+          <ArrowLeft size={16} className="text-zinc-600 dark:text-zinc-300" />
         </button>
-        <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center shrink-0">
-          <Hash size={16} className="text-brand-600" />
+        <div className="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center shrink-0">
+          <Hash size={16} className="text-brand-600 dark:text-brand-400" />
         </div>
         <div className="flex-1 min-w-0">
           {podLoading && !pod ? (
             <div className="space-y-1.5 animate-pulse">
-              <div className="h-3.5 bg-zinc-100 rounded-full w-32" />
-              <div className="h-2.5 bg-zinc-100 rounded-full w-24" />
+              <div className="h-3.5 bg-zinc-100 dark:bg-zinc-800 rounded-full w-32" />
+              <div className="h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full w-24" />
             </div>
           ) : (
             <>
-              <p className="text-sm font-bold text-zinc-900 truncate">{pod?.name ?? 'Pod'}</p>
-              <p className="text-xs text-zinc-400 flex items-center gap-1">
+              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{pod?.name ?? 'Pod'}</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
                 <Users size={9} /> {pod?.memberCount ?? 0} members · {pod?.field ?? 'General'}
-                {pod?.myRole && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600 text-[9px] font-semibold">{pod.myRole}</span>}
+                {pod?.myRole && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 text-[9px] font-semibold">{pod.myRole}</span>}
               </p>
             </>
           )}
@@ -1118,7 +1170,7 @@ export default function PodDetailPage() {
 
         {/* More menu */}
         <div className="relative">
-          <button onClick={() => setShowMenu(v => !v)} className="text-zinc-400 hover:text-zinc-600 transition p-1">
+          <button onClick={() => setShowMenu(v => !v)} className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition p-1">
             <MoreHorizontal size={18} />
           </button>
           <AnimatePresence>
@@ -1127,19 +1179,19 @@ export default function PodDetailPage() {
                 initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                className="absolute right-0 top-8 bg-white border border-zinc-200 rounded-xl shadow-lg py-1 min-w-[160px] z-20"
+                className="absolute right-0 top-8 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg py-1 min-w-[160px] z-20"
               >
                 {isAdmin && (
                   <button
                     onClick={() => { setShowMemberSheet(true); setShowMenu(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition"
                   >
                     <UserCog size={14} /> Manage Members
                   </button>
                 )}
                 <button
                   onClick={() => { handleLeave(); setShowMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
                 >
                   <LogOut size={14} /> Leave Pod
                 </button>
@@ -1150,37 +1202,34 @@ export default function PodDetailPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-zinc-100 bg-white shrink-0">
+      <div className="flex border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
         <button
           onClick={() => setActiveTab('posts')}
-          className={`flex-1 py-2.5 text-xs font-semibold transition border-b-2 ${activeTab === 'posts' ? 'border-brand-500 text-brand-600' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          className={`flex-1 py-2.5 text-xs font-semibold transition border-b-2 ${activeTab === 'posts' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
         >
           Posts
         </button>
         <button
           onClick={() => setActiveTab('polls')}
-          className={`flex-1 py-2.5 text-xs font-semibold transition border-b-2 ${activeTab === 'polls' ? 'border-brand-500 text-brand-600' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          className={`flex-1 py-2.5 text-xs font-semibold transition border-b-2 ${activeTab === 'polls' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
         >
           Polls {polls.length > 0 && `(${polls.length})`}
         </button>
       </div>
 
       {/* Content */}
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-zinc-50 dark:bg-zinc-950">
         {activeTab === 'posts' && (
           <>
             {/* Posts loading skeleton */}
             {postsLoading && posts.length === 0 && (
               <div className="space-y-3 animate-pulse">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="bg-white rounded-2xl p-4 border border-zinc-100">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-full bg-zinc-100 shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3 bg-zinc-100 rounded-full w-1/3" />
-                        <div className="h-2.5 bg-zinc-100 rounded-full w-full" />
-                        <div className="h-2.5 bg-zinc-100 rounded-full w-4/5" />
-                      </div>
+                  <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                    {i % 2 !== 0 && <div className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0" />}
+                    <div className="space-y-1.5 max-w-[60%]">
+                      <div className="h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-full w-20" />
+                      <div className={`h-12 rounded-2xl ${i % 2 === 0 ? 'bg-brand-200 dark:bg-brand-900/40' : 'bg-zinc-200 dark:bg-zinc-800'}`} />
                     </div>
                   </div>
                 ))}
@@ -1189,91 +1238,113 @@ export default function PodDetailPage() {
 
             {/* Empty state */}
             {!postsLoading && posts.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+              <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-500">
                 <MessageSquare size={32} className="mb-3 opacity-40" />
-                <p className="text-sm font-medium text-zinc-500">No posts yet</p>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No posts yet</p>
                 <p className="text-xs mt-1">Be the first to share something</p>
               </div>
             )}
 
             <AnimatePresence initial={false}>
-              {posts.map((post, i) => (
-                <motion.div
-                  id={`post-${post.id}`}
-                  key={post.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(i * 0.03, 0.2) }}
-                  className="bg-white rounded-2xl p-4 border border-zinc-100 shadow-card transition-shadow"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-bold text-zinc-600 shrink-0">
-                      {nameToInitials(post.author?.name || '?')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-800">{post.author?.name}</span>
-                        <span className="text-xs text-zinc-400">{relativeTime(post.createdAt)}</span>
-                      </div>
-                      <p className="text-sm text-zinc-700 leading-relaxed mt-1">{post.content}</p>
-
-                      {/* Post attachment */}
-                      {(post.attachmentUrl || post.previewUrl) && (
-                        <AttachmentPreview
-                          url={post.attachmentUrl ?? ''}
-                          previewUrl={post.previewUrl}
-                          type={post.attachmentType}
-                        />
+              {posts.map((post, i) => {
+                const isOwn = post.authorId === user?.id;
+                return (
+                  <motion.div
+                    id={`post-${post.id}`}
+                    key={post.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.03, 0.2) }}
+                  >
+                    {/* Bubble row */}
+                    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                      {/* Avatar — others only */}
+                      {!isOwn && (
+                        <div className="w-9 h-9 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300 shrink-0 mb-1">
+                          {nameToInitials(post.author?.name || '?')}
+                        </div>
                       )}
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-4 mt-2">
-                        <button
-                          onClick={() => handleLike(post.id)}
-                          className={`flex items-center gap-1.5 text-xs font-medium transition ${post.liked ? 'text-red-500' : 'text-zinc-400 hover:text-red-400'}`}
-                        >
-                          <Heart size={13} fill={post.liked ? 'currentColor' : 'none'} />
-                          {post.likesCount}
-                        </button>
-                        <button
-                          onClick={() => setExpandedPostId(expandedPostId === post.id ? null : post.id)}
-                          className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-brand-500 transition"
-                        >
-                          <MessageSquare size={13} />
-                          {post.repliesCount > 0 && post.repliesCount} Reply
-                          {expandedPostId === post.id
-                            ? <ChevronDown size={11} className="rotate-180 transition-transform" />
-                            : <ChevronDown size={11} className="transition-transform" />
-                          }
-                        </button>
-                        {(canDeleteAny || post.authorId === user?.id) && (
+                      <div className={`flex flex-col max-w-[82%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                        {/* Name + time */}
+                        <div className="flex items-center gap-1.5 px-1 mb-1">
+                          {!isOwn && (
+                            <span className="text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">
+                              {post.author?.name}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                            {relativeTime(post.createdAt)}
+                          </span>
+                        </div>
+
+                        {/* Bubble */}
+                        <div className={`rounded-2xl px-4 py-3 ${
+                          isOwn
+                            ? 'bg-brand-500 rounded-tr-sm'
+                            : 'bg-white dark:bg-zinc-800 rounded-tl-sm border border-zinc-100 dark:border-zinc-700 shadow-sm'
+                        }`}>
+                          <p className={`text-sm leading-relaxed ${isOwn ? 'text-white' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                            {post.content}
+                          </p>
+                          {(post.attachmentUrl || post.previewUrl) && (
+                            <AttachmentPreview
+                              url={post.attachmentUrl ?? ''}
+                              previewUrl={post.previewUrl}
+                              type={post.attachmentType}
+                            />
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 mt-1.5 px-1">
                           <button
-                            onClick={() => handleDeletePost(post.id)}
-                            className="ml-auto flex items-center gap-1 text-xs text-zinc-300 hover:text-red-400 transition"
-                            title="Delete post"
+                            onClick={() => handleLike(post.id)}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition ${post.liked ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500 hover:text-red-400'}`}
                           >
-                            <Trash2 size={12} />
+                            <Heart size={12} fill={post.liked ? 'currentColor' : 'none'} />
+                            {post.likesCount > 0 && post.likesCount}
                           </button>
-                        )}
+                          <button
+                            onClick={() => setExpandedPostId(expandedPostId === post.id ? null : post.id)}
+                            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500 hover:text-brand-500 transition"
+                          >
+                            <MessageSquare size={12} />
+                            {post.repliesCount > 0 && post.repliesCount} Reply
+                            {expandedPostId === post.id
+                              ? <ChevronDown size={10} className="rotate-180 transition-transform" />
+                              : <ChevronDown size={10} className="transition-transform" />
+                            }
+                          </button>
+                          {(canDeleteAny || isOwn) && (
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-[11px] text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition"
+                              title="Delete post"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Reply thread */}
-                  <AnimatePresence>
-                    {expandedPostId === post.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <ReplyThread communityId={id} postId={post.id} userId={user?.id || ''} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              ))}
+                    {/* Reply thread — full width below the bubble */}
+                    <AnimatePresence>
+                      {expandedPostId === post.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <ReplyThread communityId={id} postId={post.id} userId={user?.id || ''} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </>
         )}
@@ -1298,7 +1369,7 @@ export default function PodDetailPage() {
             )}
 
             {pollLoadError && (
-              <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
+              <div className="flex flex-col items-center justify-center py-10 text-zinc-400 dark:text-zinc-500">
                 <p className="text-sm text-red-400 font-medium">Couldn't load polls</p>
                 <button
                   onClick={() => {
@@ -1315,15 +1386,22 @@ export default function PodDetailPage() {
             )}
 
             {!pollLoadError && polls.length === 0 && !showPollCreator && (
-              <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
+              <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-500">
                 <BarChart2 size={32} className="mb-3 opacity-40" />
-                <p className="text-sm font-medium">No polls yet</p>
+                <p className="text-sm font-medium dark:text-zinc-400">No polls yet</p>
                 <p className="text-xs mt-1">Create one above to get members voting</p>
               </div>
             )}
 
             {polls.map(poll => (
-              <PollCard key={poll.id} poll={poll} communityId={id} onVote={handleVote} />
+              <PollCard
+                key={poll.id}
+                poll={poll}
+                communityId={id}
+                onVote={handleVote}
+                onDelete={handleDeletePoll}
+                canDelete={canDeleteAny || poll.authorId === user?.id}
+              />
             ))}
           </>
         )}
@@ -1331,7 +1409,7 @@ export default function PodDetailPage() {
 
       {/* Compose bar (posts only) */}
       {activeTab === 'posts' && (
-        <div className="px-4 py-3 bg-white border-t border-zinc-100 shrink-0 space-y-2">
+        <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 space-y-2">
           {/* Pending attachment preview */}
           {pendingPostAttachment && (
             <AttachmentPreviewCard
@@ -1345,12 +1423,12 @@ export default function PodDetailPage() {
             />
           )}
 
-          <div className="flex items-center gap-2 bg-zinc-50 rounded-2xl px-4 py-2 border border-zinc-200 focus-within:border-brand-300 transition">
+          <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl px-4 py-2 border border-zinc-200 dark:border-zinc-700 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
             {isPostMicActive ? (
               <div className="flex-1 flex items-center gap-2 min-h-[24px]">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
                 <span className="text-sm font-mono text-red-500 tabular-nums">{postMicTime}</span>
-                <span className="text-xs text-zinc-400">Tap mic to stop</span>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">Tap mic to stop</span>
               </div>
             ) : (
               <textarea
@@ -1365,28 +1443,28 @@ export default function PodDetailPage() {
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
                 placeholder={`Share something with ${pod?.name ?? 'the pod'}…`}
                 rows={1}
-                className="flex-1 bg-transparent text-sm text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none leading-relaxed overflow-hidden"
+                className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 resize-none focus:outline-none leading-relaxed overflow-hidden"
                 style={{ minHeight: '24px', maxHeight: '80px' }}
               />
             )}
             <div className="flex items-center gap-1 shrink-0">
-              <button onClick={() => handlePostAttach('IMAGE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
+              <button onClick={() => handlePostAttach('IMAGE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach image">
                 <ImageIcon size={15} />
               </button>
               <button
                 onClick={handlePostMic}
-                className={`p-1 rounded-lg transition ${isPostMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-200'}`}
+                className={`p-1 rounded-lg transition ${isPostMicActive ? 'text-red-500' : 'text-zinc-400 hover:text-brand-500 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                 title={isPostMicActive ? 'Stop recording' : 'Record voice note'}
               >
                 <Mic size={15} className={isPostMicActive ? 'animate-pulse' : ''} />
               </button>
-              <button onClick={() => handlePostAttach('FILE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
+              <button onClick={() => handlePostAttach('FILE')} disabled={isPostMicActive} className="p-1 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-brand-500 disabled:opacity-40 transition" title="Attach file">
                 <Paperclip size={15} />
               </button>
               <button
                 onClick={handlePost}
                 disabled={(!newPost.trim() && !pendingPostAttachment) || sending}
-                className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 flex items-center justify-center transition"
+                className="w-8 h-8 rounded-full bg-brand-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-700 flex items-center justify-center transition"
               >
                 {sending
                   ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />

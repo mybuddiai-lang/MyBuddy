@@ -315,19 +315,13 @@ export class FilesService implements OnModuleInit {
   // Browser POSTs multipart form-data directly to Railway; Railway uploads buffer to R2.
   async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
     const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;
-    let url = '';
-    try {
-      await this.s3.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      }));
-      url = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
-    } catch (err) {
-      this.logger.warn('R2 attachment upload failed', err);
-      url = `/uploads/${file.originalname}`;
-    }
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }));
+    const url = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
     const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
   }

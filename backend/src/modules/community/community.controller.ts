@@ -208,6 +208,17 @@ export class CommunityController {
     );
   }
 
+  @Delete(':communityId/polls/:pollId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delete a poll (author, pod admin/mod, or platform admin)' })
+  deletePoll(
+    @Param('communityId') communityId: string,
+    @Param('pollId') pollId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.communityService.deletePoll(communityId, pollId, userId);
+  }
+
   @Post(':communityId/polls/:pollId/vote')
   @ApiOperation({ summary: 'Vote on a poll option' })
   votePoll(

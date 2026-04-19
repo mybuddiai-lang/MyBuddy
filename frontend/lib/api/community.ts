@@ -171,4 +171,6 @@ export const communityApi = {
     apiClient.post(`/community/${communityId}/polls`, data),
   votePoll: (communityId: string, pollId: string, optionId: string) =>
     apiClient.post(`/community/${communityId}/polls/${pollId}/vote`, { optionId }),
+  deletePoll: (communityId: string, pollId: string) =>
+    apiClient.delete(`/community/${communityId}/polls/${pollId}`),
 };
