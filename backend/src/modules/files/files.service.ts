@@ -42,7 +42,51 @@ export class FilesService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.logger.log('FilesService ready — all uploads use browser-direct pre-signed URLs (Railway → R2 direct upload is not supported due to TLS incompatibility). Ensure R2 CORS is configured in Cloudflare dashboard: AllowedOrigins:["*"] AllowedMethods:["PUT"] AllowedHeaders:["*"]');
+    this.logger.log('FilesService ready');
+  }
+
+  // Direct multipart upload for slides: browser POSTs the file to Railway,
+  // Railway uploads the buffer to R2, creates a Note, and triggers AI processing.
+  async upload(userId: string, file: Express.Multer.File, title?: string) {
+    const key = `uploads/${userId}/${uuidv4()}-${file.originalname}`;
+    const fileType = this.detectFileType(file.mimetype, file.originalname);
+
+    let fileUrl = '';
+    try {
+      await this.s3.send(new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }));
+      fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
+    } catch (err) {
+      this.logger.warn('R2 upload failed, storing locally', err);
+      fileUrl = `/uploads/${file.originalname}`;
+    }
+
+    const note = await this.prisma.note.create({
+      data: {
+        userId,
+        title: title || file.originalname.replace(/\.[^/.]+$/, ''),
+        originalFilename: file.originalname,
+        fileUrl,
+        fileType: fileType as any,
+        processingStatus: 'PENDING',
+      },
+    });
+
+    this.analyticsService.track(userId, 'note_uploaded', {
+      noteId: note.id,
+      fileType,
+      filename: file.originalname,
+    }).catch(() => {});
+
+    this.processFile(note.id, file.buffer, file.mimetype).catch(err =>
+      this.logger.error(`processFile failed for ${note.id}`, err),
+    );
+
+    return note;
   }
 
   // Called after the browser uploads a note/slide file directly to R2.

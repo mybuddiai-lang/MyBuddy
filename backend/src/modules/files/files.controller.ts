@@ -13,6 +13,20 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class FilesController {
   constructor(private filesService: FilesService) {}
 
+  // Direct multipart upload for slides — browser POSTs the file here,
+  // Railway stores it in R2 and creates the Note record with async AI processing.
+  @Post('upload')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }))
+  upload(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('title') title?: string,
+  ) {
+    if (!file) throw new BadRequestException('No file received — ensure the request is multipart/form-data with a "file" field');
+    return this.filesService.upload(userId, file, title);
+  }
+
   @Post('transcribe')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }))
