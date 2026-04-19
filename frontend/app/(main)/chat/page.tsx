@@ -293,6 +293,10 @@ export default function ChatPage() {
       return;
     }
     const text = input.trim();
+    if (!text && pendingAttachment?.status === 'done') {
+      toast('Please add a message with your attachment.', { icon: '✏️' });
+      return;
+    }
     if (!text && pendingAttachment?.status !== 'done') return;
 
     setShowDemo(false);
@@ -304,7 +308,7 @@ export default function ChatPage() {
     // Keep the blob previewUrl alive — MessageBubble uses it until the R2 URL loads
 
     await sendMessage({
-      content: text || (attachment?.name ?? ''),
+      content: text,
       attachmentUrl: attachment?.uploadedUrl,
       attachmentType: attachment?.type,
       previewUrl: attachment?.previewUrl,
