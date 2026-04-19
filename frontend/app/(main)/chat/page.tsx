@@ -14,7 +14,26 @@ import { useSlides } from '@/lib/hooks/use-slides';
 import { useVoiceRecorder } from '@/lib/hooks/use-voice-recorder';
 import toast from 'react-hot-toast';
 import type { Message } from '@/components/chat/message-bubble';
-import { uploadViaProxy } from '@/lib/api/upload';
+// Direct multipart upload to Railway — same pattern as slides, bypasses broken Edge proxy
+async function directUploadAttachment(file: File): Promise<{ url: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> {
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+  if (!token) throw new Error('Not authenticated');
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${backendUrl}/files/upload-attachment`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Upload failed (${res.status})`);
+  }
+  const json = await res.json();
+  const data = json.data ?? json;
+  return { url: data.url, type: data.type ?? 'FILE' };
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -203,7 +222,7 @@ export default function ChatPage() {
 
   const doUpload = useCallback(async (file: File) => {
     try {
-      const { url, type: detectedType } = await uploadViaProxy(file, { maxBytes: MAX_FILE_BYTES });
+      const { url, type: detectedType } = await directUploadAttachment(file);
       setPendingAttachment(prev =>
         prev?.file === file
           ? { ...prev, uploadedUrl: url, type: detectedType as AttachmentType, status: 'done' }
