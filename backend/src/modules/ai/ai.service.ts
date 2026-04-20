@@ -39,6 +39,7 @@ export class AiService {
     userMessage: string,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
     userContext?: { name?: string; school?: string; department?: string; examDate?: Date },
+    attachment?: { url: string; type: string },
   ): Promise<{ content: string; inputTokens: number; outputTokens: number }> {
     const systemPrompt = this.buildPersonalizedPrompt(userContext);
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
@@ -48,7 +49,11 @@ export class AiService {
     ];
 
     try {
-      const result = await this.openai.chat(messages);
+      // If an image is attached, use the vision-capable scan model so the AI can read it
+      const isImage = attachment?.type === 'IMAGE' && !!attachment?.url;
+      const result = isImage
+        ? await this.openai.chatWithImage(messages, attachment!.url)
+        : await this.openai.chat(messages);
       return {
         content: result.content,
         inputTokens: result.tokens,

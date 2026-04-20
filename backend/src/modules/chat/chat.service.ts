@@ -50,8 +50,11 @@ export class ChatService {
       },
     });
 
-    // Get AI response — single blocking OpenAI call
-    const aiResponse = await this.aiService.sendChatMessage(userId, dto.content, history, user);
+    // Get AI response — use vision model if an image is attached
+    const attachment = dto.attachmentUrl
+      ? { url: dto.attachmentUrl, type: dto.attachmentType ?? 'FILE' }
+      : undefined;
+    const aiResponse = await this.aiService.sendChatMessage(userId, dto.content, history, user, attachment);
 
     // Save assistant message immediately — return this to the client fast
     const assistantMessage = await this.prisma.chatMessage.create({

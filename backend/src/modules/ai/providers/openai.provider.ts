@@ -39,6 +39,35 @@ export class OpenAIProvider {
     };
   }
 
+  // Vision-capable call: used when the user attaches an image in chat.
+  // Passes the image URL in OpenAI's multimodal format and uses the scan model (gpt-4o)
+  // so the AI can actually read and describe the image content.
+  async chatWithImage(
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    imageUrl: string,
+  ): Promise<{ content: string; tokens: number }> {
+    // Build the messages array — inject the image into the last user message
+    const all: any[] = messages.slice(0, -1); // everything except the last user turn
+    const lastUser = messages[messages.length - 1];
+    all.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: lastUser.content },
+        { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+      ],
+    });
+
+    const response = await this.openai.chat.completions.create({
+      model: this.scanModel, // gpt-4o — vision capable
+      messages: all,
+      max_tokens: 1024,
+    });
+    return {
+      content: response.choices[0]?.message?.content ?? '',
+      tokens: response.usage?.total_tokens ?? 0,
+    };
+  }
+
   // Lightweight completions: sentiment, burnout, action items — uses chat model
   async complete(prompt: string, maxTokens = 500): Promise<string> {
     const response = await this.openai.chat.completions.create({
