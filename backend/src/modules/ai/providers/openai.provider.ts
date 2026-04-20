@@ -6,7 +6,10 @@ import OpenAI, { toFile } from 'openai';
 export class OpenAIProvider {
   private client: OpenAI | null = null;
   private readonly logger = new Logger(OpenAIProvider.name);
-  private readonly model = 'gpt-4o-mini';
+  // Chat and lightweight tasks — fast, cheap
+  private readonly chatModel = 'gpt-4o-mini';
+  // File scanning (summarise, facts, key terms) — more capable
+  private readonly scanModel: string;
 
   constructor(private config: ConfigService) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
@@ -15,6 +18,8 @@ export class OpenAIProvider {
     } else {
       this.logger.warn('OPENAI_API_KEY not set — OpenAI features disabled');
     }
+    this.scanModel = this.config.get<string>('OPENAI_SCAN_MODEL', 'gpt-4o');
+    this.logger.log(`Chat model: ${this.chatModel} | Scan model: ${this.scanModel}`);
   }
 
   private get openai(): OpenAI {
@@ -24,7 +29,7 @@ export class OpenAIProvider {
 
   async chat(messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>): Promise<{ content: string; tokens: number }> {
     const response = await this.openai.chat.completions.create({
-      model: this.model,
+      model: this.chatModel,
       messages,
       max_tokens: 1024,
     });
@@ -34,9 +39,20 @@ export class OpenAIProvider {
     };
   }
 
+  // Lightweight completions: sentiment, burnout, action items — uses chat model
   async complete(prompt: string, maxTokens = 500): Promise<string> {
     const response = await this.openai.chat.completions.create({
-      model: this.model,
+      model: this.chatModel,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+    });
+    return response.choices[0]?.message?.content ?? '';
+  }
+
+  // File scanning: summarisation, fact extraction, key terms — uses upgraded scan model
+  async scan(prompt: string, maxTokens = 1400): Promise<string> {
+    const response = await this.openai.chat.completions.create({
+      model: this.scanModel,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
     });

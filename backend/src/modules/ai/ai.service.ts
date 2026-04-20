@@ -100,6 +100,8 @@ Score:`;
     }
   }
 
+  // ── File scanning methods — use the upgraded scan model ─────────────────────
+
   async summarizeContent(content: string): Promise<string> {
     const prompt = `Analyze the following academic content and return a structured JSON summary.
 
@@ -115,7 +117,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 
 JSON:`;
     try {
-      const result = await this.openai.complete(prompt, 700);
+      const result = await this.openai.scan(prompt, 700);
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -130,7 +132,7 @@ Content:
 ${content.slice(0, 4000)}
 
 Summary:`;
-    return this.openai.complete(fallback, 400);
+    return this.openai.scan(fallback, 400);
   }
 
   async extractHighYieldFacts(content: string): Promise<Array<{ question: string; answer: string }>> {
@@ -144,7 +146,7 @@ Return ONLY a valid JSON array (no markdown, no explanation):
 
 JSON:`;
     try {
-      const result = await this.openai.complete(prompt, 1400);
+      const result = await this.openai.scan(prompt, 1400);
       const jsonMatch = result.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];
       return JSON.parse(jsonMatch[0]);
@@ -164,7 +166,7 @@ Return ONLY a valid JSON array (no markdown, no explanation):
 
 JSON:`;
     try {
-      const result = await this.openai.complete(prompt, 900);
+      const result = await this.openai.scan(prompt, 900);
       const jsonMatch = result.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return [];
       return JSON.parse(jsonMatch[0]);
