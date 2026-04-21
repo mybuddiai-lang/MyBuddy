@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, InternalServerErrorException, Logger, On
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { FetchHttpHandler } from '@smithy/fetch-http-handler';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,8 +27,9 @@ export class FilesService implements OnModuleInit {
     this.bucket = config.get<string>('CLOUDFLARE_R2_BUCKET', 'buddi-uploads');
     this.publicUrl = config.get<string>('CLOUDFLARE_R2_PUBLIC_URL', '');
     const accountId = config.get<string>('CLOUDFLARE_ACCOUNT_ID', '');
-    // S3 client is used only for signing pre-signed PUT URLs (getSignedUrl).
-    // No actual HTTP traffic goes from Railway to R2 — the Vercel Edge proxy does the PUT.
+    // FetchHttpHandler makes the AWS SDK use Node.js 18's built-in fetch instead of
+    // OpenSSL for TLS. Railway's OpenSSL fails to handshake with R2's EC certificate
+    // (SSL alert 40). fetch has no such restriction, so uploads reach R2 reliably.
     this.s3 = new S3Client({
       region: 'auto',
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -38,6 +40,7 @@ export class FilesService implements OnModuleInit {
       // AWS SDK v3.382+ adds CRC32 checksum headers by default — R2 rejects these
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
+      requestHandler: new FetchHttpHandler(),
     });
   }
 
@@ -328,7 +331,9 @@ export class FilesService implements OnModuleInit {
       this.logger.warn('R2 attachment upload failed, using local fallback', err);
       url = `/uploads/${file.originalname}`;
     }
-    const type = this.detectFileType(file.mimetype, file.originalname) as 'FILE' | 'IMAGE' | 'VOICE';
+    const raw = this.detectFileType(file.mimetype, file.originalname);
+    // Map detectFileType output to the AttachmentType enum values (FILE/IMAGE/VOICE)
+    const type = (raw === 'IMAGE' ? 'IMAGE' : raw === 'VOICE' ? 'VOICE' : 'FILE') as 'FILE' | 'IMAGE' | 'VOICE';
     return { url, type };
   }
 
