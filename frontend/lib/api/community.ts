@@ -1,25 +1,5 @@
 import { apiClient } from './client';
-
-// Direct multipart upload to Railway — same pattern as slides/chat, bypasses broken Edge proxy
-async function directUploadAttachment(file: File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-  if (!token) throw new Error('Not authenticated');
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch(`${backendUrl}/files/upload-attachment`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).message || `Upload failed (${res.status})`);
-  }
-  const json = await res.json();
-  const data = json.data ?? json;
-  return { url: data.url, type: data.type ?? 'FILE' };
-}
+import { uploadToR2 } from './upload';
 
 export interface Community {
   id: string;
@@ -161,9 +141,10 @@ export const communityApi = {
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
   // Browser uploads directly to Cloudflare R2 via a backend-generated pre-signed URL.
+  // Bypasses Railway→R2 TLS failure entirely — the browser PUTs directly to R2.
   // Requires R2 CORS: Cloudflare Dashboard → R2 → buddi-bucket → Settings → CORS
   // AllowedOrigins: ["*"]  AllowedMethods: ["PUT"]  AllowedHeaders: ["*"]
-  uploadAttachment: (file: File) => directUploadAttachment(file),
+  uploadAttachment: (file: File) => uploadToR2(file),
 
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),
