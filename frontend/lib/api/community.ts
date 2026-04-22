@@ -1,5 +1,4 @@
 import { apiClient } from './client';
-import { uploadToR2 } from './upload';
 
 export interface Community {
   id: string;
@@ -140,11 +139,28 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Browser uploads directly to Cloudflare R2 via a backend-generated pre-signed URL.
-  // Bypasses Railway→R2 TLS failure entirely — the browser PUTs directly to R2.
-  // Requires R2 CORS: Cloudflare Dashboard → R2 → buddi-bucket → Settings → CORS
-  // AllowedOrigins: ["*"]  AllowedMethods: ["PUT"]  AllowedHeaders: ["*"]
-  uploadAttachment: (file: File) => uploadToR2(file),
+  // Same flow as chat: browser POSTs multipart directly to Railway /files/upload-attachment.
+  // Railway uses FetchHttpHandler (Node.js fetch, not OpenSSL) to put the buffer to R2.
+  // This is the only path that reliably works — uploadToR2 pre-signed PUT fails in practice.
+  uploadAttachment: async (file: File): Promise<{ url: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> => {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
+    if (!token) throw new Error('Not authenticated');
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${backendUrl}/files/upload-attachment`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).message || `Upload failed (${res.status})`);
+    }
+    const json = await res.json();
+    const data = json.data ?? json;
+    return { url: data.url, type: data.type ?? 'FILE' };
+  },
 
   // Polls
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),

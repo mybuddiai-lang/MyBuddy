@@ -73,6 +73,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Wait for Zustand to hydrate from localStorage before checking auth
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true);
   }, []);
 

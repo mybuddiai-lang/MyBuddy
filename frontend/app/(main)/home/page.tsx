@@ -105,7 +105,7 @@ export default function HomePage() {
               <div>
                 <p className="text-brand-100 text-xs font-medium">Next exam in</p>
                 <p className="text-3xl font-bold mt-0.5">{daysUntilExam} days</p>
-                <p className="text-brand-100 text-xs mt-1">Stay consistent — you've got this!</p>
+                <p className="text-brand-100 text-xs mt-1">Stay consistent — you&apos;ve got this!</p>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <button
@@ -181,7 +181,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-50">When is your exam?</h2>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">We'll count down the days for you</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">We&apos;ll count down the days for you</p>
                 </div>
                 <button
                   onClick={() => setShowDatePicker(false)}
@@ -330,8 +330,8 @@ export default function HomePage() {
         transition={{ delay: 0.6 }}
         className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 shadow-card"
       >
-        <p className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Today's Reminder</p>
-        <p className="text-sm text-zinc-700 dark:text-zinc-300 italic leading-relaxed">"{quote}"</p>
+        <p className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Today&apos;s Reminder</p>
+        <p className="text-sm text-zinc-700 dark:text-zinc-300 italic leading-relaxed">&quot;{quote}&quot;</p>
       </motion.div>
     </div>
   );

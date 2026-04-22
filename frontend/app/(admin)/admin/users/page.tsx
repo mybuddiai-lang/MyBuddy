@@ -52,6 +52,7 @@ export default function AdminUsersPage() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchUsers(search, page); }, []);
 
   const handleSearch = (e: React.FormEvent) => {

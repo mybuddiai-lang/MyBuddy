@@ -7,7 +7,7 @@
     "prebuild": "node scripts/prebuild.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint app/ lib/ components/",
     "test": "vitest run"
   },
   "dependencies": {

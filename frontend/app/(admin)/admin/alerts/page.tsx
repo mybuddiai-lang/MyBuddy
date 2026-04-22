@@ -38,6 +38,7 @@ export default function AdminAlertsPage() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAlerts(showResolved); }, [showResolved]);
 
   const handleResolve = async (id: string) => {

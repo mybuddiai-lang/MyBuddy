@@ -75,6 +75,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (tab === 'users' && users.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsersLoading(true);
       apiClient.get('/admin/users', { params: { limit: 50 } })
         .then(r => setUsers(r.data.data?.users ?? []))

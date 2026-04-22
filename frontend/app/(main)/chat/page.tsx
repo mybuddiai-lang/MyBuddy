@@ -440,7 +440,7 @@ export default function ChatPage() {
               Hey {user?.name?.split(' ')[0] || 'there'}!
             </h3>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-2 max-w-xs">
-              I'm Buddi, your academic resilience companion. I'm here to help you study smarter and stay well.
+              I&apos;m Buddi, your academic resilience companion. I&apos;m here to help you study smarter and stay well.
             </p>
             <div className="mt-6 w-full max-w-sm space-y-2">
               {SUGGESTED_PROMPTS.map(prompt => (

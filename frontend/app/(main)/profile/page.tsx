@@ -122,7 +122,7 @@ export default function ProfilePage() {
             <Target size={18} className="text-brand-500 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-brand-700 dark:text-brand-300">{daysUntilExam} days until exam</p>
-              <p className="text-xs text-brand-500 dark:text-brand-400">Keep going — you've got this!</p>
+              <p className="text-xs text-brand-500 dark:text-brand-400">Keep going — you&apos;ve got this!</p>
             </div>
             <button
               onClick={dismissExamBanner}

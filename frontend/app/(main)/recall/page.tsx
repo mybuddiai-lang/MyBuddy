@@ -128,7 +128,7 @@ export default function RecallPage() {
 
         {/* Card preview list */}
         <div>
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Today's Queue</p>
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Today&apos;s Queue</p>
           <div className="space-y-2">
             {cards.slice(0, 4).map((card, i) => (
               <motion.div

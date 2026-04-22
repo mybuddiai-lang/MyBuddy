@@ -267,7 +267,7 @@ export default function CommunityPage() {
       {/* Load error — only surface when we have nothing to show */}
       {loadError && !loading && pods.length === 0 && (
         <div className="text-center py-8">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Couldn't load pods — check your connection</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Couldn&apos;t load pods — check your connection</p>
           <button onClick={fetchPods} className="mt-3 text-sm text-brand-600 font-medium underline">Retry</button>
         </div>
       )}

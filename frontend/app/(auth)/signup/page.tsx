@@ -161,7 +161,7 @@ export default function SignupPage() {
                   <input type="date" value={form.examDate} onChange={e => update('examDate', e.target.value)} className={inputCls} />
                 </div>
                 <div className="bg-brand-50 dark:bg-brand-900/30 rounded-xl p-4 border border-brand-100 dark:border-brand-800">
-                  <p className="text-sm text-brand-700 dark:text-brand-300 font-medium">You're almost there!</p>
+                  <p className="text-sm text-brand-700 dark:text-brand-300 font-medium">You&apos;re almost there!</p>
                   <p className="text-xs text-brand-600 dark:text-brand-400 mt-1">Buddi will personalise your experience based on your goals.</p>
                 </div>
               </motion.div>

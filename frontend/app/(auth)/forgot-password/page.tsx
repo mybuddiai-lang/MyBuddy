@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-zinc-900 mb-3">Check your inbox</h1>
           <p className="text-zinc-500 text-sm leading-relaxed mb-8">
-            If an account exists for <span className="font-medium text-zinc-700">{email}</span>, we've sent a password reset link. Check your spam folder too.
+            If an account exists for <span className="font-medium text-zinc-700">{email}</span>, we&apos;ve sent a password reset link. Check your spam folder too.
           </p>
           <Link
             href="/login"
@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-zinc-900">Forgot your password?</h1>
           <p className="text-zinc-500 text-sm mt-2 max-w-xs leading-relaxed">
-            Enter your email and we'll send you a link to reset your password.
+            Enter your email and we&apos;ll send you a link to reset your password.
           </p>
         </motion.div>
 

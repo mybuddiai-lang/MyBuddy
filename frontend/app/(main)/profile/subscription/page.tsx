@@ -116,7 +116,7 @@ export default function SubscriptionPage() {
         <div className="bg-brand-50 rounded-2xl p-4 border border-brand-100">
           <div className="flex items-center gap-2">
             <Crown size={18} className="text-brand-600" />
-            <p className="text-sm font-semibold text-brand-700">You're on {user?.subscriptionTier}</p>
+            <p className="text-sm font-semibold text-brand-700">You&apos;re on {user?.subscriptionTier}</p>
           </div>
           <p className="text-xs text-brand-600 mt-1">All premium features are unlocked. 🎉</p>
         </div>

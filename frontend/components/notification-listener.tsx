@@ -105,6 +105,7 @@ function NotificationPermissionBanner() {
 
   // Hide once subscribed
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (state === 'subscribed') setShow(false);
   }, [state]);
 

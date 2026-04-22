@@ -267,6 +267,7 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadError(false);
     communityApi.getReplies(communityId, postId)
       .then((res: any) => setReplies(res?.data?.data ?? []))
@@ -901,7 +902,9 @@ export default function PodDetailPage() {
 
   // Load data
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPostsLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPodLoading(true);
 
     // Posts — API returns newest-first; reverse so oldest is at top, newest at bottom
@@ -1370,7 +1373,7 @@ export default function PodDetailPage() {
 
             {pollLoadError && (
               <div className="flex flex-col items-center justify-center py-10 text-zinc-400 dark:text-zinc-500">
-                <p className="text-sm text-red-400 font-medium">Couldn't load polls</p>
+                <p className="text-sm text-red-400 font-medium">Couldn&apos;t load polls</p>
                 <button
                   onClick={() => {
                     setPollLoadError(false);

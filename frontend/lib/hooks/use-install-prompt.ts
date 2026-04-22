@@ -15,6 +15,7 @@ export function useInstallPrompt() {
   useEffect(() => {
     // Check if already installed (standalone mode)
     if (window.matchMedia('(display-mode: standalone)').matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsInstalled(true);
       return;
     }
