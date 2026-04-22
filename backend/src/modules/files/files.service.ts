@@ -317,7 +317,18 @@ export class FilesService implements OnModuleInit {
   // Lightweight upload for chat/community attachments — no Note record, no AI processing.
   // Browser POSTs multipart form-data directly to Railway; Railway uploads buffer to R2.
   async uploadAttachment(userId: string, file: Express.Multer.File): Promise<{ url: string; type: 'FILE' | 'IMAGE' | 'VOICE' }> {
-    const key = `attachments/${userId}/${uuidv4()}-${file.originalname}`;
+    if (!this.publicUrl) {
+      throw new InternalServerErrorException('File storage is not configured — set CLOUDFLARE_R2_PUBLIC_URL on Railway.');
+    }
+    // Sanitize filename the same way getUploadUrl does, so the stored CDN URL is
+    // always a valid URL (no spaces or special characters that break image loading).
+    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = file.originalname
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60);
+    const key = `attachments/${userId}/${uuidv4()}-${base}.${ext}`;
     let url: string;
     try {
       await this.s3.send(new PutObjectCommand({
@@ -328,8 +339,8 @@ export class FilesService implements OnModuleInit {
       }));
       url = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
     } catch (err) {
-      this.logger.warn('R2 attachment upload failed, using local fallback', err);
-      url = `/uploads/${file.originalname}`;
+      this.logger.warn('R2 attachment upload failed', err);
+      throw new InternalServerErrorException('Attachment upload failed. Please try again.');
     }
     const raw = this.detectFileType(file.mimetype, file.originalname);
     // Map detectFileType output to the AttachmentType enum values (FILE/IMAGE/VOICE)

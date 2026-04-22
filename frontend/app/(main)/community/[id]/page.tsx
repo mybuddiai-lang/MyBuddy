@@ -204,7 +204,7 @@ function AttachmentPreview({ url, previewUrl, type }: {
             )}
           </div>
         </button>
-        {lightbox && <ImageLightbox src={url || previewUrl!} onClose={() => setLightbox(false)} />}
+        {lightbox && <ImageLightbox src={url} onClose={() => setLightbox(false)} />}
       </>
     );
   }
