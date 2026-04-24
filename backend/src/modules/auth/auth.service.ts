@@ -49,6 +49,7 @@ export class AuthService {
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (user.isBlocked) throw new UnauthorizedException('Account has been suspended');
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
     const tokens = await this.generateTokens(user.id, user.email, user.role);
@@ -133,8 +134,9 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  async generateTokens(userId: string, email: string, role?: string) {
+    const payload: Record<string, string> = { sub: userId, email };
+    if (role) payload.role = role;
     const accessToken = this.jwt.sign(payload, { expiresIn: '7d' });
     const refreshTokenValue = this.jwt.sign(payload, {
       secret: this.config.get('JWT_REFRESH_SECRET', 'buddi-refresh-secret'),

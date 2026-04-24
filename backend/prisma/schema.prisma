@@ -8,6 +8,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  SUPPORT
+  ANALYST
+  ADMIN
+  SUPER_ADMIN
+}
+
 enum SubscriptionTier {
   FREE
   PREMIUM
@@ -83,17 +91,6 @@ enum PaymentStatus {
   REFUNDED
 }
 
-enum AlertSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
 
 model User {
   id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -106,11 +103,13 @@ model User {
   department        String?
   specialization    String?
   examDate          DateTime?
+  role              UserRole         @default(USER)
   subscriptionTier  SubscriptionTier @default(FREE)
   sentimentBaseline Float            @default(0.5)
   resilienceScore   Float            @default(50.0)
   studyStreak       Int              @default(0)
-  role              UserRole         @default(USER)
+  country           String?
+  isBlocked         Boolean          @default(false)
   lastActiveAt      DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -132,7 +131,6 @@ model User {
   payments          Payment[]
   subscription      Subscription?
   analyticsEvents   AnalyticsEvent[]
-  adminAlerts       AdminAlert[]
   pushSubscriptions PushSubscription[]
 
   @@index([email])
@@ -518,18 +516,30 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
-model AdminAlert {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type        String
-  severity    AlertSeverity @default(LOW)
-  title       String
-  description String?
-  userId      String?       @db.Uuid
-  resolvedAt  DateTime?
-  createdAt   DateTime      @default(now())
+model Professional {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  email     String   @unique
+  specialty String
+  location  String?
+  available Boolean  @default(true)
+  approved  Boolean  @default(false)
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([severity, resolvedAt])
-  @@map("admin_alerts")
+  @@map("professionals")
 }
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId   String   @db.Uuid
+  action    String
+  target    String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@map("audit_logs")
+}
+

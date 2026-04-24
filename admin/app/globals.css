@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #6b5cf6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-zinc-50 text-zinc-900;
+}
+
+.dark body {
+  @apply bg-zinc-950 text-zinc-100;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { @apply bg-zinc-100; }
+::-webkit-scrollbar-thumb { @apply bg-zinc-300 rounded; }
+.dark ::-webkit-scrollbar-track { @apply bg-zinc-800; }
+.dark ::-webkit-scrollbar-thumb { @apply bg-zinc-600; }

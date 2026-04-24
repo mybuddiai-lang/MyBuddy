@@ -14,12 +14,12 @@ import { RecallModule } from './modules/recall/recall.module';
 import { CommunityModule } from './modules/community/community.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RedisModule } from './modules/cache/redis.module';
 import { EmailModule } from './modules/email/email.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -38,12 +38,12 @@ import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
     CommunityModule,
     PaymentsModule,
     AnalyticsModule,
-    AdminModule,
     HealthModule,
     NotificationsModule,
     RedisModule,
     EmailModule,
     LeaderboardModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

@@ -59,38 +59,6 @@ export class AnalyticsService {
     this.track(reminder.userId, 'reminder_due', { reminderId: reminder.id }).catch(() => {});
   }
 
-  /** Run nightly at 02:00 — scan for burnout risk and create admin alerts */
-  @Cron('0 2 * * *')
-  async detectBurnoutRisks() {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const riskyUsers = await this.prisma.user.findMany({
-      where: { sentimentBaseline: { lt: 0.35 }, lastActiveAt: { gte: weekAgo } },
-      select: { id: true, name: true, sentimentBaseline: true },
-    });
-
-    for (const user of riskyUsers) {
-      const existing = await this.prisma.adminAlert.findFirst({
-        where: { userId: user.id, type: 'BURNOUT_RISK', resolvedAt: null },
-      });
-      if (existing) continue;
-
-      const severity = user.sentimentBaseline < 0.2 ? 'HIGH' : 'MEDIUM';
-      await this.prisma.adminAlert.create({
-        data: {
-          type: 'BURNOUT_RISK',
-          severity: severity as any,
-          title: `Burnout risk: ${user.name}`,
-          description: `Sentiment baseline dropped to ${(user.sentimentBaseline * 100).toFixed(0)}%`,
-          userId: user.id,
-        },
-      });
-    }
-
-    if (riskyUsers.length > 0) {
-      this.logger.warn(`Burnout scan: ${riskyUsers.length} at-risk user(s) flagged`);
-    }
-  }
-
   /** Recalculate & persist resilience score for a single user — called after key events */
   async recalculateForUser(userId: string): Promise<void> {
     try {
