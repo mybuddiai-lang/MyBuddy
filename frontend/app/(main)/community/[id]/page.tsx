@@ -857,9 +857,8 @@ export default function PodDetailPage() {
     return () => clearTimeout(t);
   }, [posts, searchParams, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isPlatformAdmin = user?.role === 'ADMIN';
-  const isAdmin = pod?.myRole === 'ADMIN' || isPlatformAdmin;
-  const canDeleteAny = isPlatformAdmin || pod?.myRole === 'ADMIN' || pod?.myRole === 'MODERATOR';
+  const isAdmin = pod?.myRole === 'ADMIN';
+  const canDeleteAny = pod?.myRole === 'ADMIN' || pod?.myRole === 'MODERATOR';
 
   // Real-time socket connection
   useCommunitySocket(id, {

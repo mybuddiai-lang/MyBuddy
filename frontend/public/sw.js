@@ -1,4 +1,4 @@
-const CACHE_NAME = 'buddi-v7'; // auto-stamped at build time by scripts/prebuild.js
+const CACHE_NAME = 'buddi-1776994914734'; // auto-stamped at build time by scripts/prebuild.js
 
 const STATIC_ASSETS = [
   '/manifest.json',
