@@ -25,7 +25,7 @@ api.interceptors.response.use(
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }).then((r) => r.data),
+    api.post('/auth/login', { email, password }).then((r) => r.data.data ?? r.data),
 };
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
