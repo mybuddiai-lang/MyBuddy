@@ -31,14 +31,14 @@ export default function UsersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', page, search],
     queryFn: () => usersApi.list(page, 20, search),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
   });
 
   const { data: userDetail, isLoading: detailLoading } = useQuery({
     queryKey: ['admin-user-detail', selectedUser?.id],
     queryFn: () => usersApi.detail(selectedUser!.id),
     enabled: !!selectedUser?.id,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 
   const roleMutation = useMutation({

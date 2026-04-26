@@ -5,13 +5,25 @@ import MetricCard from '@/components/MetricCard';
 import PageHeader from '@/components/PageHeader';
 import { SimpleBarChart } from '@/components/SimpleChart';
 import { ShieldAlert, Users, AlertTriangle, TrendingDown } from 'lucide-react';
+import type { MentalHealthStats } from '@/lib/types';
+
+const DEMO: MentalHealthStats = {
+  totalUsers: 365,
+  distressUsers: 47,
+  distressPercent: '12.9',
+  repeatedDistress: 18,
+  buckets: { minimal: 201, mild: 117, moderate: 32, severe: 15 },
+};
 
 export default function MentalHealthPage() {
-  const { data, isLoading } = useQuery({
+  const { data: raw, isLoading } = useQuery({
     queryKey: ['mental-health'],
     queryFn: mentalHealthApi.getStats,
     refetchInterval: 120_000,
   });
+
+  const hasReal = ((raw as MentalHealthStats)?.totalUsers ?? 0) > 0;
+  const data = (hasReal ? raw : DEMO) as MentalHealthStats;
 
   const bucketData = data
     ? [

@@ -15,12 +15,33 @@ const STATUS_COLOR: Record<string, string> = {
   PENDING: 'text-amber-400',
 };
 
+const DEMO_PAYMENTS: PaymentRow[] = [
+  { id: 'd1', user: { name: 'Amara Obi', email: 'amara@example.com' }, planType: 'PREMIUM', amount: 1999, currency: 'USD', provider: 'Stripe', status: 'COMPLETED', createdAt: '2026-04-20T10:00:00Z' },
+  { id: 'd2', user: { name: 'Tunde Adeyemi', email: 'tunde@example.com' }, planType: 'PREMIUM', amount: 1999, currency: 'USD', provider: 'Paystack', status: 'COMPLETED', createdAt: '2026-04-18T14:22:00Z' },
+  { id: 'd3', user: { name: 'Chisom Eze', email: 'chisom@example.com' }, planType: 'PREMIUM', amount: 1999, currency: 'USD', provider: 'Stripe', status: 'COMPLETED', createdAt: '2026-04-15T09:11:00Z' },
+  { id: 'd4', user: { name: 'Fatima Bello', email: 'fatima@example.com' }, planType: 'PREMIUM', amount: 1999, currency: 'USD', provider: 'Paystack', status: 'COMPLETED', createdAt: '2026-04-12T16:45:00Z' },
+  { id: 'd5', user: { name: 'Emeka Nwosu', email: 'emeka@example.com' }, planType: 'PREMIUM', amount: 1999, currency: 'USD', provider: 'Stripe', status: 'FAILED', createdAt: '2026-04-10T08:30:00Z' },
+];
+
+const DEMO = {
+  mrr: 980,
+  arpu: 19.6,
+  premiumUsers: 50,
+  freeUsers: 315,
+  conversionRate: '13.7',
+  totalRevenue: '3,920.00',
+  recentPayments: DEMO_PAYMENTS,
+};
+
 export default function MonetizationPage() {
-  const { data, isLoading } = useQuery({
+  const { data: raw, isLoading } = useQuery({
     queryKey: ['monetization'],
     queryFn: monetizationApi.getStats,
     refetchInterval: 60_000,
   });
+
+  const hasReal = ((raw as typeof DEMO)?.premiumUsers ?? 0) > 0;
+  const data = (hasReal ? raw : DEMO) as typeof DEMO;
 
   const pieData = data
     ? [
