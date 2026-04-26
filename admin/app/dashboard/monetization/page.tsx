@@ -141,7 +141,7 @@ export default function MonetizationPage() {
         <h2 className="text-sm font-semibold text-zinc-300 mb-4">Recent Payments</h2>
         <DataTable
           columns={columns}
-          data={(data?.recentPayments ?? []) as Record<string, unknown>[]}
+          data={(data?.recentPayments ?? []) as unknown as Record<string, unknown>[]}
           keyField="id"
         />
       </div>
