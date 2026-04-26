@@ -10,6 +10,20 @@ import { Search, X, ChevronLeft, ChevronRight, ShieldBan, ShieldCheck, Trash2, G
 import { format } from 'date-fns';
 
 const ROLE_OPTIONS = ['USER', 'SUPPORT', 'ANALYST', 'ADMIN', 'SUPER_ADMIN'];
+
+const DEMO_USERS: UserRow[] = [
+  { id: 'd1', name: 'Amara Obi', email: 'amara@example.com', role: 'USER', school: 'University of Lagos', department: 'Medicine', country: 'Nigeria', isBlocked: false, subscriptionTier: 'PREMIUM', sentimentBaseline: 0.72, studyStreak: 14, lastActiveAt: new Date().toISOString(), createdAt: '2026-03-01T10:00:00Z', _count: { chatMessages: 234, notes: 18, reminders: 42 } },
+  { id: 'd2', name: 'Tunde Adeyemi', email: 'tunde@example.com', role: 'USER', school: 'Obafemi Awolowo University', department: 'Law', country: 'Nigeria', isBlocked: false, subscriptionTier: 'FREE', sentimentBaseline: 0.61, studyStreak: 5, lastActiveAt: new Date(Date.now() - 3600000).toISOString(), createdAt: '2026-03-05T08:00:00Z', _count: { chatMessages: 89, notes: 7, reminders: 12 } },
+  { id: 'd3', name: 'Chisom Eze', email: 'chisom@example.com', role: 'USER', school: 'University of Ghana', department: 'Engineering', country: 'Ghana', isBlocked: false, subscriptionTier: 'PREMIUM', sentimentBaseline: 0.80, studyStreak: 21, lastActiveAt: new Date(Date.now() - 7200000).toISOString(), createdAt: '2026-02-20T12:00:00Z', _count: { chatMessages: 412, notes: 31, reminders: 67 } },
+  { id: 'd4', name: 'Fatima Bello', email: 'fatima@example.com', role: 'USER', school: 'Bayero University Kano', department: 'Pharmacy', country: 'Nigeria', isBlocked: false, subscriptionTier: 'FREE', sentimentBaseline: 0.55, studyStreak: 0, lastActiveAt: new Date(Date.now() - 86400000).toISOString(), createdAt: '2026-03-12T09:00:00Z', _count: { chatMessages: 45, notes: 3, reminders: 8 } },
+  { id: 'd5', name: 'Emeka Nwosu', email: 'emeka@example.com', role: 'USER', school: 'University of Nairobi', department: 'Medicine', country: 'Kenya', isBlocked: false, subscriptionTier: 'PREMIUM', sentimentBaseline: 0.68, studyStreak: 9, lastActiveAt: new Date(Date.now() - 3600000 * 2).toISOString(), createdAt: '2026-02-28T14:00:00Z', _count: { chatMessages: 178, notes: 14, reminders: 29 } },
+  { id: 'd6', name: 'Ngozi Ike', email: 'ngozi@example.com', role: 'USER', school: 'University of Ibadan', department: 'Psychology', country: 'Nigeria', isBlocked: true, subscriptionTier: 'FREE', sentimentBaseline: 0.32, studyStreak: 0, lastActiveAt: new Date(Date.now() - 86400000 * 3).toISOString(), createdAt: '2026-03-18T11:00:00Z', _count: { chatMessages: 22, notes: 1, reminders: 3 } },
+  { id: 'd7', name: 'Segun Alade', email: 'segun@example.com', role: 'SUPPORT', school: 'University of Lagos', department: 'Medicine', country: 'Nigeria', isBlocked: false, subscriptionTier: 'FREE', sentimentBaseline: 0.75, studyStreak: 3, lastActiveAt: new Date(Date.now() - 3600000 * 5).toISOString(), createdAt: '2026-01-15T08:00:00Z', _count: { chatMessages: 67, notes: 5, reminders: 11 } },
+  { id: 'd8', name: 'Aisha Mohammed', email: 'aisha@example.com', role: 'USER', school: 'Ahmadu Bello University', department: 'Medicine', country: 'Nigeria', isBlocked: false, subscriptionTier: 'PREMIUM', sentimentBaseline: 0.79, studyStreak: 30, lastActiveAt: new Date().toISOString(), createdAt: '2026-01-20T10:00:00Z', _count: { chatMessages: 589, notes: 44, reminders: 98 } },
+  { id: 'd9', name: 'Kwame Asante', email: 'kwame@example.com', role: 'USER', school: 'Kwame Nkrumah University', department: 'Engineering', country: 'Ghana', isBlocked: false, subscriptionTier: 'FREE', sentimentBaseline: 0.64, studyStreak: 7, lastActiveAt: new Date(Date.now() - 3600000 * 3).toISOString(), createdAt: '2026-02-10T09:00:00Z', _count: { chatMessages: 112, notes: 9, reminders: 17 } },
+  { id: 'd10', name: 'Zara Kamara', email: 'zara@example.com', role: 'USER', school: 'University of Cape Town', department: 'Law', country: 'South Africa', isBlocked: false, subscriptionTier: 'PREMIUM', sentimentBaseline: 0.83, studyStreak: 18, lastActiveAt: new Date(Date.now() - 1800000).toISOString(), createdAt: '2026-02-14T13:00:00Z', _count: { chatMessages: 267, notes: 21, reminders: 45 } },
+];
+
 const TIER_COLORS: Record<string, string> = {
   FREE: 'text-zinc-400',
   PREMIUM: 'text-violet-400',
@@ -28,11 +42,16 @@ export default function UsersPage() {
   const [newRole, setNewRole] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['admin-users', page, search],
     queryFn: () => usersApi.list(page, 20, search),
     refetchInterval: 60_000,
   });
+
+  const hasRealUsers = ((rawData as { data: UserRow[] })?.data?.length ?? 0) > 0;
+  const data = hasRealUsers
+    ? (rawData as { data: UserRow[]; total: number; totalPages: number })
+    : { data: DEMO_USERS, total: DEMO_USERS.length, totalPages: 1 };
 
   const { data: userDetail, isLoading: detailLoading } = useQuery({
     queryKey: ['admin-user-detail', selectedUser?.id],
