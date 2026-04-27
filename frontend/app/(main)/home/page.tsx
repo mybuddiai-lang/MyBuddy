@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, ChevronRight, Zap, X, CalendarDays } from 'lucide-react';
+import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, Zap, X, CalendarDays, Check } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStats } from '@/lib/hooks/use-stats';
@@ -26,7 +26,7 @@ const QUOTES = [
 export default function HomePage() {
   const { user, setUser } = useAuthStore();
   const { stats } = useStats();
-  const { dueReminders } = useReminders();
+  const { dueReminders, complete } = useReminders();
 
   const quote = QUOTES[new Date().getDay() % QUOTES.length];
   const daysUntilExam = user?.examDate ? differenceInDays(new Date(user.examDate), new Date()) : null;
@@ -38,15 +38,11 @@ export default function HomePage() {
   const studyStreak = stats.studyStreak ?? user?.studyStreak ?? 0;
 
   const [highlightedReminderId, setHighlightedReminderId] = useState<string | null>(null);
-  const [showAllReminders, setShowAllReminders] = useState(false);
 
   // Read ?reminder=<id> from URL on mount — client-side only, no Suspense needed
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('reminder');
-    if (id) {
-      setHighlightedReminderId(id);
-      setShowAllReminders(true);
-    }
+    if (id) setHighlightedReminderId(id);
   }, []);
 
   // Scroll to + briefly ring-highlight the targeted reminder once it renders
@@ -59,7 +55,7 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, [highlightedReminderId, dueReminders]);
 
-  const { examBannerHidden, setExamBannerHidden } = useUIStore();
+  const { examBannerHidden, setExamBannerHidden, setNotificationPanelOpen } = useUIStore();
   const dismissExamBanner = () => setExamBannerHidden(true);
 
   // Inline exam date picker
@@ -240,7 +236,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Due reminders */}
+      {/* Due reminders — max 5, rest visible via notification bell */}
       {dueReminders.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div className="flex items-center justify-between mb-3">
@@ -248,18 +244,23 @@ export default function HomePage() {
               <Bell size={14} className="text-zinc-500 dark:text-zinc-400" />
               <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Due Today</p>
             </div>
-            {dueReminders.length > 3 && !showAllReminders && (
+            {dueReminders.length > 5 && (
               <button
-                onClick={() => setShowAllReminders(true)}
+                onClick={() => setNotificationPanelOpen(true)}
                 className="text-xs text-brand-600 dark:text-brand-400 font-medium"
               >
-                See all ({dueReminders.length})
+                +{dueReminders.length - 5} more
               </button>
             )}
           </div>
           <div className="space-y-2">
-            {(showAllReminders ? dueReminders : dueReminders.slice(0, 3)).map((r, i) => {
+            {dueReminders.slice(0, 5).map((r, i) => {
               const isHighlighted = r.id === highlightedReminderId;
+              const due = new Date(r.scheduledAt);
+              const isToday = due.toDateString() === new Date().toDateString();
+              const dayLabel = isToday
+                ? due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : due.toLocaleDateString([], { weekday: 'short' }) + ' ' + due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               return (
                 <motion.div
                   key={r.id}
@@ -267,26 +268,27 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 + i * 0.06 }}
+                  className={`flex items-center gap-3 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 border shadow-card ${
+                    isHighlighted
+                      ? 'border-brand-400 dark:border-brand-500 ring-2 ring-brand-400/40 dark:ring-brand-500/40'
+                      : 'border-zinc-100 dark:border-zinc-800'
+                  }`}
                 >
-                  <Link
-                    href={`/home?reminder=${r.id}`}
-                    className={`flex items-center gap-3 bg-white dark:bg-zinc-900 rounded-xl px-4 py-3 border shadow-card hover:bg-brand-50/30 dark:hover:bg-brand-900/20 transition ${
-                      isHighlighted
-                        ? 'border-brand-400 dark:border-brand-500 ring-2 ring-brand-400/40 dark:ring-brand-500/40'
-                        : 'border-zinc-100 dark:border-zinc-800 hover:border-brand-200 dark:hover:border-brand-700'
-                    }`}
+                  <div className="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center shrink-0">
+                    <Zap size={14} className="text-brand-600 dark:text-brand-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">{dayLabel}</p>
+                  </div>
+                  {/* Dismiss / complete button */}
+                  <button
+                    onClick={() => complete(r.id)}
+                    title="Mark as done"
+                    className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:text-emerald-600 dark:hover:text-emerald-400 text-zinc-400 dark:text-zinc-500 transition shrink-0"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center shrink-0">
-                      <Zap size={14} className="text-brand-600 dark:text-brand-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
-                      <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                        {new Date(r.scheduledAt) <= new Date() ? 'Due now' : 'Due soon'}
-                      </p>
-                    </div>
-                    <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                  </Link>
+                    <Check size={13} />
+                  </button>
                 </motion.div>
               );
             })}

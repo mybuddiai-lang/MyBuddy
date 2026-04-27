@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ArrowLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { NotificationPanel, useNotificationCount } from '@/components/layout/notification-panel';
+import { useUIStore } from '@/lib/store/ui.store';
 
 const ROOT_TITLES: Record<string, string> = {
   '/home': 'Buddi',
@@ -36,6 +37,15 @@ export function TopHeader() {
   const isHome = pathname === '/home' || pathname === '/chat';
   const [panelOpen, setPanelOpen] = useState(false);
   const unreadCount = useNotificationCount();
+  const { notificationPanelOpen, setNotificationPanelOpen } = useUIStore();
+
+  // Allow other pages to trigger the panel via UIStore
+  useEffect(() => {
+    if (notificationPanelOpen) {
+      setPanelOpen(true);
+      setNotificationPanelOpen(false);
+    }
+  }, [notificationPanelOpen, setNotificationPanelOpen]);
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800 safe-area-top">
