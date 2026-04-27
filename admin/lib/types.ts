@@ -119,6 +119,7 @@ export interface Professional {
   available: boolean;
   approved: boolean;
   verificationStatus?: string;
+  referralsReceived?: number;
   bio: string | null;
   createdAt: string;
 }

@@ -31,6 +31,10 @@ const TOP_SCHOOLS = [
   { school: 'Ahmadu Bello University', count: 31 },
 ];
 const USAGE_METRICS = { avgSessionsPerUser: 4.2, avgChatsPerUser: 18.7, retentionD7: 68 };
+const DEMO_DAU_TREND = Array.from({ length: 7 }, (_, i) => ({
+  date: format(subDays(new Date(), 6 - i), 'MMM d'),
+  dau: 38 + Math.round(Math.sin(i * 0.8) * 8) + i,
+}));
 const INSIGHTS = [
   { text: 'Signups from University of Lagos increased 18% this week', type: 'positive' },
   { text: 'Daily usage dropped 8% on weekends — consider weekend nudges', type: 'neutral' },
@@ -137,6 +141,21 @@ export default function DashboardPage() {
       {/* ── Section 3: Usage ── */}
       <section>
         <p className="text-xs text-zinc-500 uppercase tracking-widest font-semibold mb-3">Usage</p>
+
+        {/* DAU Trend */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold text-zinc-300">Daily Active Users Trend</h2>
+            <span className="text-xs text-zinc-600">Last 7 days · DAU = users who sent ≥1 message</span>
+          </div>
+          <SimpleLineChart
+            data={DEMO_DAU_TREND as Record<string, unknown>[]}
+            xKey="date"
+            lines={[{ key: 'dau', name: 'DAU', color: '#06b6d4' }]}
+            height={180}
+          />
+        </div>
+
         <div className="grid grid-cols-3 gap-3 md:gap-4 mb-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -144,6 +163,7 @@ export default function DashboardPage() {
               <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium">Avg Sessions / User</p>
             </div>
             <p className="text-xl font-bold text-white">{USAGE_METRICS.avgSessionsPerUser}</p>
+            <p className="text-xs text-zinc-600 mt-1">Session = app open + interaction</p>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -151,6 +171,7 @@ export default function DashboardPage() {
               <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium">Avg Chats / User</p>
             </div>
             <p className="text-xl font-bold text-white">{USAGE_METRICS.avgChatsPerUser}</p>
+            <p className="text-xs text-zinc-600 mt-1">Chat = message sent</p>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -158,6 +179,7 @@ export default function DashboardPage() {
               <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium">Day-7 Retention</p>
             </div>
             <p className="text-xl font-bold text-white">{USAGE_METRICS.retentionD7}%</p>
+            <p className="text-xs text-zinc-600 mt-1">Signup = completed onboarding</p>
           </div>
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

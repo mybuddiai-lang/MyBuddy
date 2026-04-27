@@ -7,12 +7,29 @@ import type { ActivityEvent } from '@/lib/types';
 import { Search } from 'lucide-react';
 import { formatDistanceToNow, subMinutes } from 'date-fns';
 
+// Abstracted event labels — no distress/diagnosis language per privacy rules
+const EVENT_LABEL: Record<string, string> = {
+  user_register: 'user_register',
+  user_login: 'user_login',
+  support_signal: 'support_signal',
+  support_shown: 'support_shown',
+  resource_accessed: 'resource_accessed',
+  payment_completed: 'payment_completed',
+  ai_error: 'ai_error',
+  slide_upload: 'slide_upload',
+  recall_completed: 'recall_completed',
+  // legacy backend field names mapped transparently
+  distress_detected: 'support_signal',
+  referral_shown: 'support_shown',
+  referral_accepted: 'resource_accessed',
+};
+
 const EVENT_COLOR: Record<string, string> = {
   user_register: 'bg-emerald-500/15 text-emerald-400',
   user_login: 'bg-blue-500/15 text-blue-400',
-  distress_detected: 'bg-red-500/15 text-red-400',
-  referral_shown: 'bg-amber-500/15 text-amber-400',
-  referral_accepted: 'bg-violet-500/15 text-violet-400',
+  support_signal: 'bg-amber-500/15 text-amber-400',
+  support_shown: 'bg-violet-500/15 text-violet-400',
+  resource_accessed: 'bg-emerald-500/15 text-emerald-400',
   payment_completed: 'bg-emerald-500/15 text-emerald-400',
   ai_error: 'bg-red-500/15 text-red-400',
   slide_upload: 'bg-blue-500/15 text-blue-400',
@@ -20,19 +37,20 @@ const EVENT_COLOR: Record<string, string> = {
 };
 
 const now = new Date();
+// Demo data: no names or emails — anonymized per privacy policy
 const DEMO_ACTIVITY: ActivityEvent[] = [
-  { id: 'd1', eventType: 'user_login', user: { name: 'Amara Obi', email: 'amara@example.com' }, createdAt: subMinutes(now, 2).toISOString(), sessionId: null },
-  { id: 'd2', eventType: 'slide_upload', user: { name: 'Tunde Adeyemi', email: 'tunde@example.com' }, createdAt: subMinutes(now, 5).toISOString(), sessionId: null },
-  { id: 'd3', eventType: 'recall_completed', user: { name: 'Chisom Eze', email: 'chisom@example.com' }, createdAt: subMinutes(now, 9).toISOString(), sessionId: null },
-  { id: 'd4', eventType: 'user_register', user: { name: 'Fatima Bello', email: 'fatima@example.com' }, createdAt: subMinutes(now, 14).toISOString(), sessionId: null },
-  { id: 'd5', eventType: 'payment_completed', user: { name: 'Emeka Nwosu', email: 'emeka@example.com' }, createdAt: subMinutes(now, 18).toISOString(), sessionId: null },
-  { id: 'd6', eventType: 'distress_detected', user: { name: 'Ngozi Ike', email: 'ngozi@example.com' }, createdAt: subMinutes(now, 23).toISOString(), sessionId: null },
-  { id: 'd7', eventType: 'referral_shown', user: { name: 'Ngozi Ike', email: 'ngozi@example.com' }, createdAt: subMinutes(now, 23).toISOString(), sessionId: null },
-  { id: 'd8', eventType: 'referral_accepted', user: { name: 'Ngozi Ike', email: 'ngozi@example.com' }, createdAt: subMinutes(now, 24).toISOString(), sessionId: null },
-  { id: 'd9', eventType: 'user_login', user: { name: 'Segun Alade', email: 'segun@example.com' }, createdAt: subMinutes(now, 31).toISOString(), sessionId: null },
-  { id: 'd10', eventType: 'slide_upload', user: { name: 'Amara Obi', email: 'amara@example.com' }, createdAt: subMinutes(now, 45).toISOString(), sessionId: null },
-  { id: 'd11', eventType: 'user_login', user: { name: 'Chisom Eze', email: 'chisom@example.com' }, createdAt: subMinutes(now, 58).toISOString(), sessionId: null },
-  { id: 'd12', eventType: 'recall_completed', user: { name: 'Tunde Adeyemi', email: 'tunde@example.com' }, createdAt: subMinutes(now, 72).toISOString(), sessionId: null },
+  { id: 'd1', eventType: 'user_login', user: null, createdAt: subMinutes(now, 2).toISOString(), sessionId: 'U-482910' },
+  { id: 'd2', eventType: 'slide_upload', user: null, createdAt: subMinutes(now, 5).toISOString(), sessionId: 'U-391047' },
+  { id: 'd3', eventType: 'recall_completed', user: null, createdAt: subMinutes(now, 9).toISOString(), sessionId: 'U-203847' },
+  { id: 'd4', eventType: 'user_register', user: null, createdAt: subMinutes(now, 14).toISOString(), sessionId: null },
+  { id: 'd5', eventType: 'payment_completed', user: null, createdAt: subMinutes(now, 18).toISOString(), sessionId: 'U-571920' },
+  { id: 'd6', eventType: 'support_signal', user: null, createdAt: subMinutes(now, 23).toISOString(), sessionId: null },
+  { id: 'd7', eventType: 'support_shown', user: null, createdAt: subMinutes(now, 23).toISOString(), sessionId: null },
+  { id: 'd8', eventType: 'resource_accessed', user: null, createdAt: subMinutes(now, 24).toISOString(), sessionId: null },
+  { id: 'd9', eventType: 'user_login', user: null, createdAt: subMinutes(now, 31).toISOString(), sessionId: 'U-837261' },
+  { id: 'd10', eventType: 'slide_upload', user: null, createdAt: subMinutes(now, 45).toISOString(), sessionId: 'U-482910' },
+  { id: 'd11', eventType: 'user_login', user: null, createdAt: subMinutes(now, 58).toISOString(), sessionId: 'U-203847' },
+  { id: 'd12', eventType: 'recall_completed', user: null, createdAt: subMinutes(now, 72).toISOString(), sessionId: 'U-391047' },
 ];
 
 export default function OperationsPage() {
@@ -78,30 +96,34 @@ export default function OperationsPage() {
             </div>
           ) : (
             <div className="space-y-2 max-h-[480px] overflow-y-auto">
-              {activityFeed.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-                        EVENT_COLOR[ev.eventType] ?? 'bg-zinc-700 text-zinc-400'
-                      }`}
-                    >
-                      {ev.eventType}
-                    </span>
-                    {ev.user && (
-                      <span className="text-xs text-zinc-400 truncate max-w-[140px]">
-                        {ev.user.email}
+              {activityFeed.map((ev) => {
+                const label = EVENT_LABEL[ev.eventType] ?? ev.eventType;
+                const displayId = ev.sessionId ?? null;
+                return (
+                  <div
+                    key={ev.id}
+                    className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                          EVENT_COLOR[label] ?? 'bg-zinc-700 text-zinc-400'
+                        }`}
+                      >
+                        {label}
                       </span>
-                    )}
+                      {displayId && (
+                        <span className="text-xs text-zinc-600 font-mono">
+                          {displayId}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-zinc-600 whitespace-nowrap ml-2">
+                      {formatDistanceToNow(new Date(ev.createdAt), { addSuffix: true })}
+                    </span>
                   </div>
-                  <span className="text-xs text-zinc-600 whitespace-nowrap ml-2">
-                    {formatDistanceToNow(new Date(ev.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
               {!activityFeed?.length && (
                 <p className="text-center text-zinc-600 text-sm py-8">No recent activity</p>
               )}
