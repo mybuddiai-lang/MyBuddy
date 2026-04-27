@@ -6,9 +6,9 @@ import OpenAI, { toFile } from 'openai';
 export class OpenAIProvider {
   private client: OpenAI | null = null;
   private readonly logger = new Logger(OpenAIProvider.name);
-  // Chat and lightweight tasks — fast, cheap
-  private readonly chatModel = 'gpt-4o-mini';
-  // File scanning (summarise, facts, key terms) — more capable
+  // Chat and lightweight tasks — 1M context, fast, cheap
+  private readonly chatModel = 'gpt-4.1-mini';
+  // File scanning and vision (summarise, facts, key terms) — 1M context, highest accuracy
   private readonly scanModel: string;
 
   constructor(private config: ConfigService) {
@@ -18,7 +18,7 @@ export class OpenAIProvider {
     } else {
       this.logger.warn('OPENAI_API_KEY not set — OpenAI features disabled');
     }
-    this.scanModel = this.config.get<string>('OPENAI_SCAN_MODEL', 'gpt-4o');
+    this.scanModel = this.config.get<string>('OPENAI_SCAN_MODEL', 'gpt-4.1');
     this.logger.log(`Chat model: ${this.chatModel} | Scan model: ${this.scanModel}`);
   }
 
@@ -40,7 +40,7 @@ export class OpenAIProvider {
   }
 
   // Vision-capable call: used when the user attaches an image in chat.
-  // Passes the image URL in OpenAI's multimodal format and uses the scan model (gpt-4o)
+  // Passes the image URL in OpenAI's multimodal format and uses the scan model (gpt-4.1)
   // so the AI can actually read and describe the image content.
   async chatWithImage(
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
@@ -58,7 +58,7 @@ export class OpenAIProvider {
     });
 
     const response = await this.openai.chat.completions.create({
-      model: this.scanModel, // gpt-4o — vision capable
+      model: this.scanModel, // gpt-4.1 — vision capable, 1M context
       messages: all,
       max_tokens: 1024,
     });
