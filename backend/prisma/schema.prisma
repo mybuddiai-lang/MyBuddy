@@ -132,6 +132,7 @@ model User {
   subscription      Subscription?
   analyticsEvents   AnalyticsEvent[]
   pushSubscriptions PushSubscription[]
+  notifications     UserNotification[]
 
   @@index([email])
   @@index([subscriptionTier])
@@ -529,6 +530,24 @@ model Professional {
   updatedAt DateTime @updatedAt
 
   @@map("professionals")
+}
+
+model UserNotification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
+  title     String
+  body      String
+  type      String    @default("general")
+  url       String?
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
+  @@map("user_notifications")
 }
 
 model AuditLog {

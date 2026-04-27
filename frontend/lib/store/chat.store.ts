@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { chatApi } from '../api/chat';
 import type { Message } from '../../components/chat/message-bubble';
+import toast from 'react-hot-toast';
 
 interface SendPayload {
   content: string;
@@ -56,6 +57,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: [...state.messages, assistantMsg],
         isTyping: false,
       }));
+
+      // If the AI detected an explicit reminder request, notify the user
+      if (response.reminderSet) {
+        const time = new Date(response.reminderSet.scheduledFor).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const date = new Date(response.reminderSet.scheduledFor).toLocaleDateString([], {
+          weekday: 'short', month: 'short', day: 'numeric',
+        });
+        toast.success(`⏰ Reminder set — ${response.reminderSet.title} · ${date} at ${time}`, {
+          duration: 5000,
+          style: { fontSize: '13px' },
+        });
+      }
     } catch {
       set((state) => ({
         messages: [...state.messages, {

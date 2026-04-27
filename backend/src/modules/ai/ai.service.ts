@@ -220,6 +220,42 @@ JSON:`;
     }
   }
 
+  /**
+   * Detects explicit reminder requests in a chat message (e.g. "remind me to study at 9pm").
+   * Returns a structured reminder with exact ISO scheduledFor, or null if none found.
+   */
+  async extractExplicitReminder(
+    userMessage: string,
+    nowIso: string,
+  ): Promise<{ title: string; scheduledFor: string } | null> {
+    const prompt = `You are extracting explicit reminder requests from a student's message.
+
+Current time (ISO): ${nowIso}
+Message: "${userMessage.slice(0, 400)}"
+
+Only extract if the student is EXPLICITLY asking to be reminded — keywords like "remind me", "set a reminder", "don't let me forget", "alert me", etc.
+The reminder must have a specific time mentioned (e.g. "at 9pm", "in 2 hours", "tomorrow 8am").
+
+If found, return JSON: {"title":"<concise reminder title>","scheduledFor":"<ISO datetime>"}
+If NOT found, return: null
+
+JSON:`;
+    try {
+      const result = await this.openai.complete(prompt, 120);
+      const trimmed = result.trim();
+      if (trimmed === 'null' || !trimmed.includes('{')) return null;
+      const match = trimmed.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      const parsed = JSON.parse(match[0]);
+      if (!parsed.title || !parsed.scheduledFor) return null;
+      const scheduled = new Date(parsed.scheduledFor);
+      if (isNaN(scheduled.getTime()) || scheduled <= new Date()) return null;
+      return { title: parsed.title, scheduledFor: scheduled.toISOString() };
+    } catch {
+      return null;
+    }
+  }
+
   async transcribeAudio(file: Express.Multer.File): Promise<string> {
     return this.openai.transcribe(file.buffer, file.mimetype, file.originalname);
   }

@@ -50,11 +50,34 @@ export class ChatService {
       },
     });
 
-    // Get AI response — use vision model if an image is attached
+    // Run in parallel: get AI response AND detect explicit reminder request
     const attachment = dto.attachmentUrl
       ? { url: dto.attachmentUrl, type: dto.attachmentType ?? 'FILE' }
       : undefined;
-    const aiResponse = await this.aiService.sendChatMessage(userId, dto.content, history, user, attachment);
+    const [aiResponse, explicitReminder] = await Promise.all([
+      this.aiService.sendChatMessage(userId, dto.content, history, user, attachment),
+      this.aiService.extractExplicitReminder(dto.content, new Date().toISOString()),
+    ]);
+
+    // If the user explicitly asked for a reminder, create it now (synchronous so we can confirm)
+    let reminderSet: { title: string; scheduledFor: string } | undefined;
+    if (explicitReminder) {
+      try {
+        await this.prisma.reminder.create({
+          data: {
+            userId,
+            title: explicitReminder.title,
+            description: 'Set via chat',
+            scheduledFor: new Date(explicitReminder.scheduledFor),
+            type: 'STUDY',
+          },
+        });
+        reminderSet = explicitReminder;
+        this.logger.debug(`Chat reminder created for user ${userId}: "${explicitReminder.title}" at ${explicitReminder.scheduledFor}`);
+      } catch (err) {
+        this.logger.warn('Failed to create explicit chat reminder', err);
+      }
+    }
 
     // Save assistant message immediately — return this to the client fast
     const assistantMessage = await this.prisma.chatMessage.create({
@@ -68,7 +91,6 @@ export class ChatService {
     });
 
     // ── Background tasks (non-blocking — do not await) ────────────────────────
-    // Sentiment analysis + baseline update run after the HTTP response is sent
     this.runBackgroundTasks(userId, userMessage.id, assistantMessage.id, dto.content, aiResponse.content);
     this.analyticsService.track(userId, 'message_sent', { contentLength: dto.content.length }).catch(() => {});
 
@@ -78,6 +100,7 @@ export class ChatService {
       content: assistantMessage.content,
       sentimentScore: assistantMessage.sentimentScore,
       createdAt: assistantMessage.createdAt,
+      reminderSet,
     };
   }
 

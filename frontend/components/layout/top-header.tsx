@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { NotificationPanel, useNotificationCount } from '@/components/layout/notification-panel';
 
 const ROOT_TITLES: Record<string, string> = {
   '/home': 'Buddi',
@@ -33,6 +34,8 @@ export function TopHeader() {
   const router = useRouter();
   const { title, showBack, backHref } = getPageTitle(pathname);
   const isHome = pathname === '/home' || pathname === '/chat';
+  const [panelOpen, setPanelOpen] = useState(false);
+  const unreadCount = useNotificationCount();
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800 safe-area-top">
@@ -55,13 +58,22 @@ export function TopHeader() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            href="/profile/notifications"
-            className="w-9 h-9 rounded-full bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-700 transition relative"
-          >
-            <Bell size={18} className="text-zinc-600 dark:text-zinc-400" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-500 rounded-full border-2 border-white dark:border-zinc-900" />
-          </Link>
+
+          {/* Bell — opens notification panel */}
+          <div className="relative">
+            <button
+              onClick={() => setPanelOpen(prev => !prev)}
+              className="w-9 h-9 rounded-full bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-700 transition relative"
+              aria-label="Notifications"
+            >
+              <Bell size={18} className="text-zinc-600 dark:text-zinc-400" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-500 rounded-full border-2 border-white dark:border-zinc-900" />
+              )}
+            </button>
+
+            <NotificationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+          </div>
         </div>
       </div>
     </header>

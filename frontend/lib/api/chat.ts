@@ -8,6 +8,7 @@ export interface ChatMessage {
   attachmentUrl?: string;
   attachmentType?: 'IMAGE' | 'FILE' | 'VOICE';
   createdAt: string;
+  reminderSet?: { title: string; scheduledFor: string };
 }
 
 export const chatApi = {
