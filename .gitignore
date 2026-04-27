@@ -57,3 +57,9 @@ frontend/package-lock.json
 julia.py
 .vercel
 issue.md
+
+# Local-only docs
+Admin.md
+Admin_note.md
+DEPLOYMENT.md
+claude.md
