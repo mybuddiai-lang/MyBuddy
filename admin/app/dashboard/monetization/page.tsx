@@ -4,10 +4,15 @@ import { monetizationApi } from '@/lib/api';
 import MetricCard from '@/components/MetricCard';
 import PageHeader from '@/components/PageHeader';
 import DataTable from '@/components/DataTable';
-import { SimplePieChart } from '@/components/SimpleChart';
-import { DollarSign, TrendingUp, Users, CreditCard } from 'lucide-react';
-import { format } from 'date-fns';
+import { SimplePieChart, SimpleLineChart } from '@/components/SimpleChart';
+import { DollarSign, TrendingUp, Users, CreditCard, TrendingDown } from 'lucide-react';
+import { format, subMonths } from 'date-fns';
 import type { PaymentRow } from '@/lib/types';
+
+const DEMO_MONTHLY_REVENUE = Array.from({ length: 6 }, (_, i) => ({
+  month: format(subMonths(new Date(), 5 - i), 'MMM'),
+  mrr: 480 + i * 100 + Math.round(Math.sin(i * 0.7) * 40),
+}));
 
 const STATUS_COLOR: Record<string, string> = {
   COMPLETED: 'text-emerald-400',
@@ -29,6 +34,7 @@ const DEMO = {
   premiumUsers: 50,
   freeUsers: 315,
   conversionRate: '13.7',
+  churnRate: '4.2',
   totalRevenue: '3,920.00',
   recentPayments: DEMO_PAYMENTS,
 };
@@ -94,9 +100,9 @@ export default function MonetizationPage() {
 
   return (
     <div>
-      <PageHeader title="Monetization" description="Revenue and subscription metrics" />
+      <PageHeader title="Revenue" description="Subscription and revenue metrics" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <MetricCard
           label="MRR (est.)"
           value={data?.mrr ? `$${data.mrr}` : '—'}
@@ -121,19 +127,34 @@ export default function MonetizationPage() {
           icon={CreditCard}
           color="amber"
         />
+        <MetricCard
+          label="Churn Rate"
+          value={data?.churnRate ? `${data.churnRate}%` : '—'}
+          icon={TrendingDown}
+          color="amber"
+        />
+        <MetricCard
+          label="Active Subscriptions"
+          value={data?.premiumUsers?.toLocaleString() ?? '—'}
+          icon={Users}
+          color="green"
+        />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-zinc-300 mb-1">Monthly Revenue (MRR)</h2>
+          <p className="text-xs text-zinc-500 mb-4">Last 6 months</p>
+          <SimpleLineChart
+            data={DEMO_MONTHLY_REVENUE as Record<string, unknown>[]}
+            xKey="month"
+            lines={[{ key: 'mrr', name: 'MRR ($)', color: '#22c55e' }]}
+            height={200}
+          />
+        </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Free vs Premium</h2>
           <SimplePieChart data={pieData} height={200} />
-        </div>
-        <div className="col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-zinc-300 mb-1">Total Revenue</h2>
-          <p className="text-3xl font-bold text-white mb-1">
-            ${data?.totalRevenue ?? '0.00'}
-          </p>
-          <p className="text-xs text-zinc-500">All time (completed payments)</p>
         </div>
       </div>
 

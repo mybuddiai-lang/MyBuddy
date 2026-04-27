@@ -114,9 +114,11 @@ export interface Professional {
   name: string;
   email: string;
   specialty: string;
+  type?: string;
   location: string | null;
   available: boolean;
   approved: boolean;
+  verificationStatus?: string;
   bio: string | null;
   createdAt: string;
 }

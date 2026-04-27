@@ -6,8 +6,8 @@ import { logout } from '@/lib/auth';
 import {
   LayoutDashboard,
   Users,
-  Heart,
-  Share2,
+  FlaskConical,
+  ShieldHalf,
   CreditCard,
   Stethoscope,
   Activity,
@@ -17,20 +17,22 @@ import {
   LogOut,
   X,
   ShieldCheck,
+  Lock,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/users', label: 'Users', icon: Users },
   { href: '/dashboard/admins', label: 'Admin Users', icon: ShieldCheck },
-  { href: '/dashboard/mental-health', label: 'Mental Health', icon: Heart },
-  { href: '/dashboard/referrals', label: 'Referrals', icon: Share2 },
-  { href: '/dashboard/monetization', label: 'Monetization', icon: CreditCard },
+  { href: '/dashboard/mental-health', label: 'Early Outcomes', icon: FlaskConical },
+  { href: '/dashboard/referrals', label: 'Safety & Referrals', icon: ShieldHalf },
+  { href: '/dashboard/monetization', label: 'Revenue', icon: CreditCard },
   { href: '/dashboard/professionals', label: 'Professionals', icon: Stethoscope },
   { href: '/dashboard/operations', label: 'Operations', icon: Activity },
   { href: '/dashboard/ai-monitoring', label: 'AI Monitoring', icon: Bot },
   { href: '/dashboard/system', label: 'System', icon: Server },
   { href: '/dashboard/reports', label: 'Reports', icon: FileBarChart },
+  { href: '/dashboard/compliance', label: 'Compliance', icon: Lock },
 ];
 
 interface SidebarProps {
