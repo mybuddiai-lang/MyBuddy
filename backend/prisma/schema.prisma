@@ -423,12 +423,14 @@ model CommunityPostReply {
 }
 
 model CommunityPoll {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  communityId String    @db.Uuid
-  authorId    String    @db.Uuid
-  question    String
-  endsAt      DateTime?
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communityId     String    @db.Uuid
+  authorId        String    @db.Uuid
+  question        String
+  endsAt          DateTime?
+  isQuiz          Boolean   @default(false)
+  correctOptionId String?   @db.Uuid
+  createdAt       DateTime  @default(now())
 
   community Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
   author    User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)

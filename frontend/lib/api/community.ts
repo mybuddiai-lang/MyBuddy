@@ -63,6 +63,11 @@ export interface CommunityPoll {
   author: { id: string; name: string };
   question: string;
   endsAt?: string;
+  isQuiz: boolean;
+  /** Only present after quiz timer expires (null while quiz is active) */
+  correctOptionId: string | null;
+  /** Total vote count across all options */
+  totalVotes: number;
   createdAt: string;
   options: CommunityPollOption[];
   myVotedOptionId: string | null;
@@ -162,10 +167,15 @@ export const communityApi = {
     return { url: data.url, type: data.type ?? 'FILE' };
   },
 
-  // Polls
+  // Polls & Quizzes
   getPolls: (communityId: string) => apiClient.get(`/community/${communityId}/polls`),
-  createPoll: (communityId: string, data: { question: string; options: string[]; endsAt?: string }) =>
-    apiClient.post(`/community/${communityId}/polls`, data),
+  createPoll: (communityId: string, data: {
+    question: string;
+    options: string[];
+    endsAt?: string;
+    isQuiz?: boolean;
+    correctOptionText?: string;
+  }) => apiClient.post(`/community/${communityId}/polls`, data),
   votePoll: (communityId: string, pollId: string, optionId: string) =>
     apiClient.post(`/community/${communityId}/polls/${pollId}/vote`, { optionId }),
   deletePoll: (communityId: string, pollId: string) =>

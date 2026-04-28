@@ -491,7 +491,7 @@ export class CommunityService {
     }
   }
 
-  private async pushPollToMembers(communityId: string, authorId: string, authorName: string, question: string, communityName: string) {
+  private async pushPollToMembers(communityId: string, authorId: string, authorName: string, question: string, communityName: string, title?: string) {
     const members = await this.prisma.communityMember.findMany({
       where: { communityId },
       select: { userId: true },
@@ -500,7 +500,7 @@ export class CommunityService {
     for (const member of members) {
       if (member.userId === authorId) continue;
       this.push.sendToUser(member.userId, {
-        title: `${communityName} — new poll`,
+        title: title ?? `${communityName} — new poll`,
         body: `${authorName}: ${preview}`,
         url: `/community/${communityId}?tab=polls`,
         tag: `community-poll-${communityId}`,
@@ -541,6 +541,50 @@ export class CommunityService {
 
   // ─── Polls ────────────────────────────────────────────────────────────────
 
+  // ─── Poll formatting helpers ───────────────────────────────────────────────
+
+  /** Build a client-safe poll payload. When quiz and not expired, hides vote counts + correct answer. */
+  private formatPollForClient(poll: any, myUserId: string) {
+    const now = new Date();
+    // A poll with no endsAt is always "expired" (counts always visible)
+    const expired = poll.endsAt ? (poll.endsAt as Date) < now : true;
+    const maskCounts = poll.isQuiz && !expired;
+
+    const myVotedOption = poll.options.find((o: any) => o.votes?.length > 0);
+    const totalVotes = poll.options.reduce((s: number, o: any) => s + (o.votesCount ?? 0), 0);
+
+    return {
+      id: poll.id,
+      communityId: poll.communityId,
+      authorId: poll.authorId,
+      author: poll.author,
+      question: poll.question,
+      isQuiz: poll.isQuiz,
+      endsAt: poll.endsAt,
+      createdAt: poll.createdAt,
+      // Reveal correct answer only after quiz timer expires
+      correctOptionId: maskCounts ? null : (poll.correctOptionId ?? null),
+      totalVotes,
+      options: poll.options.map((opt: any) => ({
+        id: opt.id,
+        text: opt.text,
+        // Hide per-option vote counts while quiz is active
+        votesCount: maskCounts ? 0 : (opt.votesCount ?? 0),
+        votedByMe: (opt.votes?.length ?? 0) > 0,
+      })),
+      myVotedOptionId: myVotedOption?.id ?? null,
+    };
+  }
+
+  /** Build broadcast-safe payload: strips user-specific vote info so all clients receive the same data. */
+  private formatPollForBroadcast(formattedPoll: any) {
+    return {
+      ...formattedPoll,
+      myVotedOptionId: null,
+      options: formattedPoll.options.map((o: any) => ({ ...o, votedByMe: false })),
+    };
+  }
+
   async getPolls(communityId: string, userId: string) {
     const polls = await this.prisma.communityPoll.findMany({
       where: { communityId },
@@ -553,27 +597,28 @@ export class CommunityService {
       },
     });
 
-    return polls.map(poll => ({
-      ...poll,
-      options: poll.options.map(opt => ({
-        id: opt.id,
-        text: opt.text,
-        votesCount: opt.votesCount,
-        votedByMe: opt.votes.length > 0,
-      })),
-      myVotedOptionId: poll.options.find(o => o.votes.length > 0)?.id ?? null,
-    }));
+    return polls.map(poll => this.formatPollForClient(poll, userId));
   }
 
-  async createPoll(communityId: string, authorId: string, question: string, options: string[], endsAt?: Date) {
+  async createPoll(
+    communityId: string,
+    authorId: string,
+    question: string,
+    options: string[],
+    endsAt?: Date,
+    isQuiz = false,
+    correctOptionText?: string,
+  ) {
     const community = await this.prisma.community.findUnique({ where: { id: communityId }, select: { name: true } });
 
+    // Create poll with all options
     const poll = await this.prisma.communityPoll.create({
       data: {
         communityId,
         authorId,
         question,
         endsAt,
+        isQuiz,
         options: { create: options.map(text => ({ text })) },
       },
       include: {
@@ -581,12 +626,42 @@ export class CommunityService {
         options: true,
       },
     });
-    this.gateway.broadcastToCommunity(communityId, 'community:new_poll', poll);
+
+    // Set correctOptionId for quiz mode by matching option text
+    let finalPoll: typeof poll & { correctOptionId?: string | null } = poll;
+    if (isQuiz && correctOptionText) {
+      const correctOpt = poll.options.find(o => o.text === correctOptionText);
+      if (correctOpt) {
+        await this.prisma.communityPoll.update({
+          where: { id: poll.id },
+          data: { correctOptionId: correctOpt.id },
+        });
+        finalPoll = { ...poll, correctOptionId: correctOpt.id };
+      }
+    }
+
+    // Broadcast — hide correct answer in broadcast (revealed after timer expires)
+    const broadcastPayload = {
+      id: finalPoll.id,
+      communityId: finalPoll.communityId,
+      authorId: finalPoll.authorId,
+      author: (finalPoll as any).author,
+      question: finalPoll.question,
+      isQuiz: finalPoll.isQuiz,
+      endsAt: finalPoll.endsAt,
+      createdAt: finalPoll.createdAt,
+      correctOptionId: null, // not revealed until timer expires
+      totalVotes: 0,
+      myVotedOptionId: null,
+      options: finalPoll.options.map(o => ({ id: o.id, text: o.text, votesCount: 0, votedByMe: false })),
+    };
+    this.gateway.broadcastToCommunity(communityId, 'community:new_poll', broadcastPayload);
 
     // Push notification to all members except the creator — non-blocking
-    this.pushPollToMembers(communityId, authorId, (poll as any).author?.name ?? 'Someone', question, community?.name ?? 'Community').catch(() => {});
+    const notifTitle = isQuiz ? `${community?.name ?? 'Community'} — new quiz` : `${community?.name ?? 'Community'} — new poll`;
+    this.pushPollToMembers(communityId, authorId, (finalPoll as any).author?.name ?? 'Someone', question, community?.name ?? 'Community', notifTitle).catch(() => {});
 
-    return poll;
+    return finalPoll;
   }
 
   async deletePoll(communityId: string, pollId: string, userId: string) {
@@ -635,9 +710,12 @@ export class CommunityService {
       this.prisma.communityPollOption.update({ where: { id: optionId }, data: { votesCount: { increment: 1 } } }),
     ]);
 
-    // Broadcast updated poll to community room
+    // Broadcast updated poll to community room — strip user-specific vote info so
+    // every client gets the same payload and manages their own myVotedOptionId locally.
     const updatedPoll = await this.getPolls(poll.communityId, userId).then(polls => polls.find(p => p.id === pollId));
-    if (updatedPoll) this.gateway.broadcastToCommunity(poll.communityId, 'community:poll_update', updatedPoll);
+    if (updatedPoll) {
+      this.gateway.broadcastToCommunity(poll.communityId, 'community:poll_update', this.formatPollForBroadcast(updatedPoll));
+    }
 
     return { voted: true, optionId };
   }

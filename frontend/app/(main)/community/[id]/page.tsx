@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Send, Heart, Users, Hash, Pin, MoreHorizontal, MessageSquare,
+  ArrowLeft, Send, Heart, Users, Hash, MoreHorizontal, MessageSquare,
   Paperclip, Mic, Image as ImageIcon, FileText, BarChart2, X, Plus, ChevronDown,
-  Check, LogOut, UserCog, Clock, Trash2, AlertCircle, RefreshCw,
+  Check, LogOut, UserCog, Clock, Trash2, AlertCircle, RefreshCw, Brain, Trophy, Lock,
 } from 'lucide-react';
 import { communityApi, CommunityPost, CommunityPostReply, CommunityPoll, CommunityMember, JoinRequest } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -464,114 +464,329 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
   );
 }
 
-// ─── Poll card ────────────────────────────────────────────────────────────────
+// ─── Poll / Quiz card ─────────────────────────────────────────────────────────
 
-function PollCard({
-  poll, communityId, onVote, onDelete, canDelete,
+function PollQuizCard({
+  poll, communityId, onVote, onDelete, canDelete, onExpire,
 }: {
   poll: CommunityPoll;
   communityId: string;
   onVote: (pollId: string, optionId: string) => void;
   onDelete?: (pollId: string) => void;
   canDelete?: boolean;
+  onExpire?: (pollId: string) => void;
 }) {
-  const totalVotes = poll.options.reduce((s, o) => s + o.votesCount, 0);
+  const isQuiz = poll.isQuiz;
+
+  // ── Timer ────────────────────────────────────────────────────────────────
+  const [secsLeft, setSecsLeft] = useState(() => {
+    if (!poll.endsAt) return 0;
+    return Math.max(0, Math.floor((new Date(poll.endsAt).getTime() - Date.now()) / 1000));
+  });
+
+  const expiredByTimer = secsLeft <= 0;
+  // A poll without endsAt is always "expired" (counts visible immediately)
+  const expired = !poll.endsAt || expiredByTimer || new Date(poll.endsAt) < new Date();
+
+  // Reveal = either not a quiz (poll), or timer expired
+  const revealed = !isQuiz || expired;
+
+  // Track transition to revealed for animation
+  const prevRevealedRef = useRef(revealed);
+  const [revealAnim, setRevealAnim] = useState(false);
+
+  useEffect(() => {
+    if (revealed && !prevRevealedRef.current) {
+      setRevealAnim(true);
+      const t = setTimeout(() => setRevealAnim(false), 2000);
+      return () => clearTimeout(t);
+    }
+    prevRevealedRef.current = revealed;
+  }, [revealed]);
+
+  useEffect(() => {
+    if (!poll.endsAt || secsLeft <= 0) return;
+    const id = setInterval(() => {
+      setSecsLeft(s => {
+        const next = s - 1;
+        if (next <= 0) {
+          clearInterval(id);
+          onExpire?.(poll.id);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasVoted = poll.myVotedOptionId !== null;
-  const expired = poll.endsAt ? new Date(poll.endsAt) < new Date() : false;
+  const totalVotes = poll.totalVotes ?? poll.options.reduce((s, o) => s + o.votesCount, 0);
+
+  // State machine: 'voting' | 'waiting' | 'revealed'
+  type QuizState = 'voting' | 'waiting' | 'revealed';
+  const state: QuizState = revealed ? 'revealed' : hasVoted ? 'waiting' : 'voting';
+
+  const minsLeft = Math.floor(secsLeft / 60);
+  const secsPart = secsLeft % 60;
+  const timerLabel = minsLeft > 0 ? `${minsLeft}:${secsPart.toString().padStart(2, '0')}` : `0:${secsLeft.toString().padStart(2, '0')}`;
+  const timerDanger = secsLeft <= 30 && secsLeft > 0;
+
+  const userGotItRight = hasVoted && revealed && poll.correctOptionId !== null
+    && poll.myVotedOptionId === poll.correctOptionId;
+  const userGotItWrong = hasVoted && revealed && poll.correctOptionId !== null
+    && poll.myVotedOptionId !== poll.correctOptionId;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-zinc-800 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-700 shadow-card"
+      className={`rounded-2xl p-4 border shadow-card transition ${
+        isQuiz
+          ? state === 'revealed'
+            ? 'bg-white dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700'
+            : 'bg-white dark:bg-zinc-800 border-brand-200 dark:border-brand-800'
+          : 'bg-white dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700'
+      }`}
     >
+      {/* Header */}
       <div className="flex items-center gap-2 mb-3">
-        <BarChart2 size={14} className="text-brand-500" />
-        <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Poll</span>
+        {isQuiz
+          ? <Brain size={14} className="text-violet-500 shrink-0" />
+          : <BarChart2 size={14} className="text-brand-500 shrink-0" />}
+        <span className={`text-xs font-bold uppercase tracking-wider ${isQuiz ? 'text-violet-600 dark:text-violet-400' : 'text-brand-600 dark:text-brand-400'}`}>
+          {isQuiz ? 'Quiz' : 'Poll'}
+        </span>
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500">· {poll.author?.name}</span>
         <div className="ml-auto flex items-center gap-2">
-          {expired && <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Ended</span>}
-          {!expired && poll.endsAt && (
+          {/* Timer / ended state */}
+          {isQuiz && state !== 'revealed' && secsLeft > 0 && (
+            <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full flex items-center gap-1 ${
+              timerDanger
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                : 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+            }`}>
+              <Clock size={10} className={timerDanger ? 'animate-pulse' : ''} />
+              {timerLabel}
+            </span>
+          )}
+          {state === 'revealed' && poll.endsAt && (
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Ended</span>
+          )}
+          {!isQuiz && !expired && poll.endsAt && (
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-              <Clock size={9} /> Ends {relativeTime(poll.endsAt)}
+              <Clock size={9} /> {relativeTime(poll.endsAt)}
             </span>
           )}
           {canDelete && onDelete && (
-            <button
-              onClick={() => onDelete(poll.id)}
-              className="p-0.5 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition"
-              title="Delete poll"
-            >
+            <button onClick={() => onDelete(poll.id)} className="p-0.5 text-zinc-300 dark:text-zinc-600 hover:text-red-400 transition" title="Delete">
               <Trash2 size={12} />
             </button>
           )}
         </div>
       </div>
-      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mb-3">{poll.question}</p>
 
-      <div className="space-y-2">
-        {poll.options.map(option => {
-          const pct = totalVotes > 0 ? Math.round((option.votesCount / totalVotes) * 100) : 0;
-          const isMyVote = poll.myVotedOptionId === option.id;
-          return (
+      {/* Question */}
+      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mb-3 leading-snug">{poll.question}</p>
+
+      {/* ── Voting state ── */}
+      {state === 'voting' && (
+        <div className="space-y-2">
+          {poll.options.map(option => (
             <button
               key={option.id}
-              disabled={hasVoted || expired}
-              onClick={() => !hasVoted && !expired && onVote(poll.id, option.id)}
-              className="w-full text-left relative"
+              onClick={() => onVote(poll.id, option.id)}
+              className={`w-full text-left px-4 py-2.5 rounded-xl border transition font-medium text-sm
+                ${isQuiz
+                  ? 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 text-zinc-700 dark:text-zinc-200 hover:border-violet-400 dark:hover:border-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/40'
+                  : 'border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/50 text-zinc-700 dark:text-zinc-200 hover:border-brand-300 dark:hover:border-brand-500'
+                }`}
             >
-              <div className={`relative z-10 flex items-center justify-between px-3 py-2 rounded-xl border transition ${
-                isMyVote
-                  ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/30 dark:border-brand-600'
-                  : 'border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/50 hover:border-brand-300 dark:hover:border-brand-500'
-              } ${hasVoted || expired ? 'cursor-default' : 'cursor-pointer'}`}>
-                {/* Progress bar */}
-                {hasVoted && (
-                  <div
-                    className="absolute inset-0 rounded-xl bg-brand-100 dark:bg-brand-700/30 opacity-40 transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                )}
-                <span className={`relative text-xs font-medium ${isMyVote ? 'text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-200'}`}>
-                  {option.text}
-                  {isMyVote && <Check size={11} className="inline ml-1 text-brand-500 dark:text-brand-400" />}
-                </span>
-                {hasVoted && (
-                  <span className="relative text-xs font-semibold text-zinc-500 dark:text-zinc-400">{pct}%</span>
+              {option.text}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Waiting state (quiz only, voted but timer running) ── */}
+      {state === 'waiting' && (
+        <div className="space-y-2">
+          {poll.options.map(option => {
+            const isMyVote = poll.myVotedOptionId === option.id;
+            return (
+              <div
+                key={option.id}
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm font-medium transition ${
+                  isMyVote
+                    ? 'border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                    : 'border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'
+                }`}
+              >
+                <span>{option.text}</span>
+                {isMyVote && (
+                  <span className="ml-2 text-[10px] font-semibold text-violet-500 dark:text-violet-400">
+                    ← Your pick
+                  </span>
                 )}
               </div>
-            </button>
-          );
-        })}
-      </div>
+            );
+          })}
+          <div className="flex items-center justify-center gap-2 pt-2 text-zinc-500 dark:text-zinc-400">
+            <Lock size={12} className="animate-pulse" />
+            <p className="text-xs font-medium">
+              Results hidden · {totalVotes} voted · reveals in {timerLabel}
+            </p>
+          </div>
+        </div>
+      )}
 
-      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2 text-right">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+      {/* ── Revealed state ── */}
+      {state === 'revealed' && (
+        <>
+          {/* Result bar feedback */}
+          {isQuiz && hasVoted && poll.correctOptionId !== null && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`mb-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
+                userGotItRight
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+              }`}
+            >
+              {userGotItRight ? <Trophy size={14} /> : <X size={14} />}
+              {userGotItRight ? 'You got it right!' : 'Better luck next time'}
+            </motion.div>
+          )}
+
+          <div className="space-y-2">
+            {poll.options.map((option, i) => {
+              const pct = totalVotes > 0 ? Math.round((option.votesCount / totalVotes) * 100) : 0;
+              const isMyVote = poll.myVotedOptionId === option.id;
+              const isCorrect = isQuiz && poll.correctOptionId === option.id;
+              const isWrong = isQuiz && isMyVote && !isCorrect && poll.correctOptionId !== null;
+
+              let barColor = 'bg-brand-500';
+              let borderClass = 'border-zinc-200 dark:border-zinc-600';
+              let textClass = 'text-zinc-700 dark:text-zinc-200';
+
+              if (isCorrect) {
+                barColor = 'bg-emerald-500';
+                borderClass = 'border-emerald-400 dark:border-emerald-600';
+                textClass = 'text-emerald-700 dark:text-emerald-300';
+              } else if (isWrong) {
+                barColor = 'bg-red-400';
+                borderClass = 'border-red-300 dark:border-red-700';
+                textClass = 'text-red-600 dark:text-red-400';
+              } else if (isMyVote) {
+                borderClass = 'border-brand-300 dark:border-brand-700';
+                textClass = 'text-brand-700 dark:text-brand-300';
+              }
+
+              return (
+                <div key={option.id} className={`relative rounded-xl border overflow-hidden ${borderClass}`}>
+                  {/* Animated bar fill */}
+                  <motion.div
+                    className={`absolute inset-y-0 left-0 opacity-20 ${barColor}`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.7, delay: revealAnim ? 0.2 + i * 0.1 : 0, ease: 'easeOut' }}
+                  />
+                  <div className="relative flex items-center justify-between px-3 py-2.5">
+                    <span className={`text-xs font-medium flex items-center gap-1.5 ${textClass}`}>
+                      {option.text}
+                      {isCorrect && <Check size={12} className="text-emerald-600 dark:text-emerald-400" />}
+                      {isMyVote && !isCorrect && (
+                        <span className="text-[9px] font-semibold opacity-70">← You</span>
+                      )}
+                    </span>
+                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">{pct}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Footer */}
+      <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2.5 text-right">
+        {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
+        {isQuiz && state === 'revealed' && poll.correctOptionId && (
+          <span className="ml-2 text-emerald-600 dark:text-emerald-400 font-semibold">· Results revealed</span>
+        )}
+      </p>
     </motion.div>
   );
 }
 
-// ─── Poll creator ─────────────────────────────────────────────────────────────
+// ─── Poll / Quiz creator ──────────────────────────────────────────────────────
+
+const QUIZ_TIMER_PRESETS = [
+  { label: '30s', secs: 30 },
+  { label: '1m',  secs: 60 },
+  { label: '2m',  secs: 120 },
+  { label: '5m',  secs: 300 },
+  { label: '10m', secs: 600 },
+  { label: '15m', secs: 900 },
+];
 
 function PollCreator({ communityId, onCreated, onClose }: { communityId: string; onCreated: (poll: CommunityPoll) => void; onClose: () => void }) {
+  const [mode, setMode] = useState<'poll' | 'quiz'>('poll');
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
+  const [correctIdx, setCorrectIdx] = useState<number | null>(null);
+  const [timerSecs, setTimerSecs] = useState<number | null>(null);
+  const [pollTimerSecs, setPollTimerSecs] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const addOption = () => { if (options.length < 6) setOptions(prev => [...prev, '']); };
-  const removeOption = (i: number) => setOptions(prev => prev.filter((_, idx) => idx !== i));
+  const removeOption = (i: number) => {
+    setOptions(prev => prev.filter((_, idx) => idx !== i));
+    if (correctIdx === i) setCorrectIdx(null);
+    else if (correctIdx !== null && correctIdx > i) setCorrectIdx(correctIdx - 1);
+  };
   const updateOption = (i: number, val: string) => setOptions(prev => prev.map((o, idx) => idx === i ? val : o));
 
+  const validOptions = options.filter(o => o.trim());
+  const canSubmit = question.trim() && validOptions.length >= 2
+    && (mode === 'poll' || (correctIdx !== null && timerSecs !== null));
+
   const handleSubmit = async () => {
-    const validOptions = options.filter(o => o.trim());
-    if (!question.trim() || validOptions.length < 2) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const res = await communityApi.createPoll(communityId, { question: question.trim(), options: validOptions });
-      const created = (res as any)?.data?.data;
-      if (created) onCreated({ ...created, myVotedOptionId: null, options: (created.options ?? []).map((o: any) => ({ ...o, votedByMe: false })) });
+      const endsAt = mode === 'quiz' && timerSecs
+        ? new Date(Date.now() + timerSecs * 1000).toISOString()
+        : pollTimerSecs
+        ? new Date(Date.now() + pollTimerSecs * 1000).toISOString()
+        : undefined;
+
+      const correctOptionText = mode === 'quiz' && correctIdx !== null
+        ? validOptions[correctIdx]
+        : undefined;
+
+      const res = await communityApi.createPoll(communityId, {
+        question: question.trim(),
+        options: validOptions,
+        endsAt,
+        isQuiz: mode === 'quiz',
+        correctOptionText,
+      });
+      const created = (res as any)?.data?.data ?? (res as any)?.data;
+      if (created) {
+        onCreated({
+          ...created,
+          isQuiz: mode === 'quiz',
+          correctOptionId: null, // hidden until timer expires
+          totalVotes: 0,
+          myVotedOptionId: null,
+          options: (created.options ?? []).map((o: any) => ({ id: o.id, text: o.text, votesCount: 0, votedByMe: false })),
+        });
+      }
       onClose();
     } catch {
-      toast.error('Failed to create poll. Please try again.');
+      toast.error(`Failed to create ${mode}. Please try again.`);
     }
     setSubmitting(false);
   };
@@ -580,56 +795,143 @@ function PollCreator({ communityId, onCreated, onClose }: { communityId: string;
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-zinc-800 border border-brand-200 dark:border-zinc-700 rounded-2xl p-4 shadow-card"
+      className={`bg-white dark:bg-zinc-800 border rounded-2xl p-4 shadow-card ${
+        mode === 'quiz' ? 'border-violet-200 dark:border-violet-800' : 'border-brand-200 dark:border-zinc-700'
+      }`}
     >
+      {/* Header + mode toggle */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-          <BarChart2 size={15} className="text-brand-500" /> Create Poll
-        </span>
-        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300">
+        <div className="flex bg-zinc-100 dark:bg-zinc-700 rounded-xl p-0.5 gap-0.5">
+          <button
+            onClick={() => { setMode('poll'); setCorrectIdx(null); setTimerSecs(null); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              mode === 'poll' ? 'bg-white dark:bg-zinc-600 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-zinc-400 dark:text-zinc-400'
+            }`}
+          >
+            <BarChart2 size={12} /> Poll
+          </button>
+          <button
+            onClick={() => setMode('quiz')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              mode === 'quiz' ? 'bg-white dark:bg-zinc-600 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-zinc-400 dark:text-zinc-400'
+            }`}
+          >
+            <Brain size={12} /> Quiz
+          </button>
+        </div>
+        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 p-1">
           <X size={16} />
         </button>
       </div>
 
+      {/* Hint */}
+      {mode === 'quiz' && (
+        <p className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 px-3 py-1.5 rounded-xl mb-3 flex items-center gap-1.5">
+          <Brain size={10} />
+          Mark the correct answer · results hidden until timer ends
+        </p>
+      )}
+
+      {/* Question */}
       <input
         value={question}
         onChange={e => setQuestion(e.target.value)}
-        placeholder="Ask a question…"
-        className="w-full text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border border-zinc-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand-400 dark:focus:border-brand-500 mb-3"
+        placeholder={mode === 'quiz' ? 'Ask a quiz question…' : 'Ask a question…'}
+        className={`w-full text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border rounded-xl px-3 py-2.5 focus:outline-none mb-3 transition ${
+          mode === 'quiz' ? 'border-zinc-200 dark:border-zinc-600 focus:border-violet-400 dark:focus:border-violet-500' : 'border-zinc-200 dark:border-zinc-600 focus:border-brand-400 dark:focus:border-brand-500'
+        }`}
       />
 
+      {/* Options */}
       <div className="space-y-2 mb-3">
         {options.map((opt, i) => (
           <div key={i} className="flex items-center gap-2">
+            {/* Correct answer radio (quiz only) */}
+            {mode === 'quiz' && (
+              <button
+                onClick={() => setCorrectIdx(correctIdx === i ? null : i)}
+                title="Mark as correct answer"
+                className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition ${
+                  correctIdx === i
+                    ? 'border-emerald-500 bg-emerald-500'
+                    : 'border-zinc-300 dark:border-zinc-500 hover:border-emerald-400'
+                }`}
+              >
+                {correctIdx === i && <Check size={11} className="text-white" />}
+              </button>
+            )}
             <input
               value={opt}
               onChange={e => updateOption(i, e.target.value)}
               placeholder={`Option ${i + 1}`}
-              className="flex-1 text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border border-zinc-200 dark:border-zinc-600 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-400 dark:focus:border-brand-500"
+              className={`flex-1 text-sm bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border rounded-xl px-3 py-2 focus:outline-none transition ${
+                mode === 'quiz' && correctIdx === i
+                  ? 'border-emerald-400 dark:border-emerald-600 focus:border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
+                  : 'border-zinc-200 dark:border-zinc-600 focus:border-brand-400 dark:focus:border-brand-500'
+              }`}
             />
             {options.length > 2 && (
-              <button onClick={() => removeOption(i)} className="text-zinc-400 hover:text-red-400 shrink-0">
+              <button onClick={() => removeOption(i)} className="text-zinc-400 hover:text-red-400 shrink-0 transition">
                 <X size={13} />
               </button>
             )}
           </div>
         ))}
+        {mode === 'quiz' && correctIdx === null && validOptions.length >= 2 && (
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+            Select the correct answer (green circle)
+          </p>
+        )}
       </div>
 
-      <div className="flex items-center gap-2 pt-1">
-        {options.length < 6 && (
-          <button onClick={addOption} className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 flex items-center gap-1 font-medium">
-            <Plus size={12} /> Add option
-          </button>
-        )}
-        <button
-          onClick={handleSubmit}
-          disabled={!question.trim() || options.filter(o => o.trim()).length < 2 || submitting}
-          className="ml-auto text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white px-5 py-2 rounded-xl disabled:opacity-40 transition"
-        >
-          {submitting ? 'Creating…' : 'Create Poll'}
+      {/* Add option */}
+      {options.length < 6 && (
+        <button onClick={addOption} className="text-xs text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 flex items-center gap-1 font-medium mb-3">
+          <Plus size={12} /> Add option
         </button>
+      )}
+
+      {/* Timer — required for quiz, optional for poll */}
+      <div className="mb-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
+          {mode === 'quiz' ? 'Quiz timer (required)' : 'Poll duration (optional)'}
+        </p>
+        <div className="flex gap-1.5 flex-wrap">
+          {QUIZ_TIMER_PRESETS.map(({ label, secs }) => {
+            const active = mode === 'quiz' ? timerSecs === secs : pollTimerSecs === secs;
+            return (
+              <button
+                key={label}
+                onClick={() => {
+                  if (mode === 'quiz') setTimerSecs(timerSecs === secs ? null : secs);
+                  else setPollTimerSecs(pollTimerSecs === secs ? null : secs);
+                }}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition ${
+                  active
+                    ? mode === 'quiz'
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-brand-500 text-white border-brand-500'
+                    : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:border-brand-300 dark:hover:border-brand-700'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Submit */}
+      <button
+        onClick={handleSubmit}
+        disabled={!canSubmit || submitting}
+        className={`w-full text-sm font-bold text-white py-2.5 rounded-xl disabled:opacity-40 transition ${
+          mode === 'quiz' ? 'bg-violet-500 hover:bg-violet-600' : 'bg-brand-500 hover:bg-brand-600'
+        }`}
+      >
+        {submitting ? `Creating ${mode}…` : mode === 'quiz' ? '🧠 Launch Quiz' : 'Create Poll'}
+      </button>
     </motion.div>
   );
 }
@@ -892,7 +1194,11 @@ export default function PodDetailPage() {
       });
     },
     onPollUpdate: (updatedPoll) => {
-      setPolls(prev => prev.map(p => p.id === updatedPoll.id ? updatedPoll : p));
+      // Broadcast doesn't include per-user vote info — preserve myVotedOptionId from local state
+      setPolls(prev => prev.map(p => {
+        if (p.id !== updatedPoll.id) return p;
+        return { ...updatedPoll, myVotedOptionId: p.myVotedOptionId };
+      }));
     },
     onDeletePoll: ({ pollId }) => {
       setPolls(prev => prev.filter(p => p.id !== pollId));
@@ -1134,6 +1440,20 @@ export default function PodDetailPage() {
     }
   };
 
+  // Called by PollQuizCard when its local countdown hits 0 — refetch to get revealed vote counts
+  const handlePollExpire = useCallback(async (pollId: string) => {
+    try {
+      const res = await communityApi.getPolls(id);
+      const fresh: CommunityPoll[] = res?.data?.data ?? [];
+      setPolls(prev => prev.map(p => {
+        const updated = fresh.find(f => f.id === p.id);
+        if (!updated) return p;
+        // Preserve local myVotedOptionId when syncing from server
+        return { ...updated, myVotedOptionId: p.myVotedOptionId };
+      }));
+    } catch { /* silent */ }
+  }, [id]);
+
   return (
     <div
       className="flex flex-col bg-white dark:bg-zinc-950"
@@ -1215,7 +1535,7 @@ export default function PodDetailPage() {
           onClick={() => setActiveTab('polls')}
           className={`flex-1 py-2.5 text-xs font-semibold transition border-b-2 ${activeTab === 'polls' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
         >
-          Polls {polls.length > 0 && `(${polls.length})`}
+          Polls & Quizzes {polls.length > 0 && `(${polls.length})`}
         </button>
       </div>
 
@@ -1358,7 +1678,7 @@ export default function PodDetailPage() {
                 onClick={() => setShowPollCreator(v => !v)}
                 className="flex items-center gap-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 px-4 py-2 rounded-xl transition shadow-sm"
               >
-                <Plus size={15} /> {showPollCreator ? 'Cancel' : 'Create Poll'}
+                <Plus size={15} /> {showPollCreator ? 'Cancel' : 'Poll / Quiz'}
               </button>
             </div>
 
@@ -1390,19 +1710,20 @@ export default function PodDetailPage() {
             {!pollLoadError && polls.length === 0 && !showPollCreator && (
               <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-500">
                 <BarChart2 size={32} className="mb-3 opacity-40" />
-                <p className="text-sm font-medium dark:text-zinc-400">No polls yet</p>
-                <p className="text-xs mt-1">Create one above to get members voting</p>
+                <p className="text-sm font-medium dark:text-zinc-400">No polls or quizzes yet</p>
+                <p className="text-xs mt-1">Create one above to engage members</p>
               </div>
             )}
 
             {polls.map(poll => (
-              <PollCard
+              <PollQuizCard
                 key={poll.id}
                 poll={poll}
                 communityId={id}
                 onVote={handleVote}
                 onDelete={handleDeletePoll}
                 canDelete={canDeleteAny || poll.authorId === user?.id}
+                onExpire={handlePollExpire}
               />
             ))}
           </>

@@ -193,11 +193,11 @@ export class CommunityController {
   }
 
   @Post(':id/polls')
-  @ApiOperation({ summary: 'Create a poll in a community' })
+  @ApiOperation({ summary: 'Create a poll or quiz in a community' })
   createPoll(
     @Param('id') communityId: string,
     @CurrentUser('id') userId: string,
-    @Body() body: { question: string; options: string[]; endsAt?: string },
+    @Body() body: { question: string; options: string[]; endsAt?: string; isQuiz?: boolean; correctOptionText?: string },
   ) {
     return this.communityService.createPoll(
       communityId,
@@ -205,6 +205,8 @@ export class CommunityController {
       body.question,
       body.options,
       body.endsAt ? new Date(body.endsAt) : undefined,
+      body.isQuiz ?? false,
+      body.correctOptionText,
     );
   }
 
