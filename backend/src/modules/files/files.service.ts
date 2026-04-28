@@ -85,7 +85,7 @@ export class FilesService implements OnModuleInit {
       filename: file.originalname,
     }).catch(() => {});
 
-    this.processFile(note.id, file.buffer, file.mimetype).catch(err =>
+    this.processFile(note.id, file.buffer, file.mimetype, file.originalname).catch(err =>
       this.logger.error(`processFile failed for ${note.id}`, err),
     );
 
@@ -118,20 +118,20 @@ export class FilesService implements OnModuleInit {
     }).catch(() => {});
 
     // Download from the public CDN URL (not the S3 API) and process
-    this.fetchAndProcess(note.id, dto.publicUrl, dto.contentType).catch(err =>
+    this.fetchAndProcess(note.id, dto.publicUrl, dto.contentType, dto.originalFilename).catch(err =>
       this.logger.error(`fetchAndProcess failed for ${note.id}`, err),
     );
 
     return note;
   }
 
-  private async fetchAndProcess(noteId: string, publicUrl: string, mimetype: string) {
+  private async fetchAndProcess(noteId: string, publicUrl: string, mimetype: string, filename?: string) {
     try {
       this.logger.log(`Fetching file for AI processing: ${noteId}`);
       const response = await fetch(publicUrl);
       if (!response.ok) throw new Error(`CDN fetch failed: ${response.status} ${response.statusText}`);
       const buffer = Buffer.from(await response.arrayBuffer());
-      await this.processFile(noteId, buffer, mimetype);
+      await this.processFile(noteId, buffer, mimetype, filename);
     } catch (err) {
       this.logger.error(`fetchAndProcess error for note ${noteId}`, err);
       const failed = await this.prisma.note.update({
@@ -143,8 +143,15 @@ export class FilesService implements OnModuleInit {
     }
   }
 
-  private async processFile(noteId: string, buffer: Buffer, mimetype: string) {
+  private async processFile(noteId: string, buffer: Buffer, mimetype: string, filename?: string) {
     await this.prisma.note.update({ where: { id: noteId }, data: { processingStatus: 'PROCESSING' } });
+
+    const lowerName = (filename ?? '').toLowerCase();
+    const isPptx =
+      mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      mimetype === 'application/vnd.ms-powerpoint' ||
+      lowerName.endsWith('.pptx') ||
+      lowerName.endsWith('.ppt');
 
     try {
       // Extract text content
@@ -165,14 +172,14 @@ export class FilesService implements OnModuleInit {
           this.logger.warn(`PDF parse failed for note ${noteId}, using fallback`, pdfErr);
           content = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\t]/g, ' ').trim();
         }
-      } else if (
-        mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-        mimetype === 'application/vnd.ms-powerpoint'
-      ) {
+      } else if (isPptx) {
         try {
+          // officeparser v6+ returns an AST — call .toText() to get the plain string.
+          // The old parseOfficeAsync no longer exists in v6; parseOffice returns a Promise.
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const officeParser = require('officeparser');
-          content = await officeParser.parseOfficeAsync(buffer, { outputErrorToConsole: false });
+          const ast = await officeParser.parseOffice(buffer, { outputErrorToConsole: false });
+          content = ast.toText();
           this.logger.log(`PPTX parsed: ${content.length} chars from note ${noteId}`);
         } catch (pptxErr) {
           this.logger.warn(`PPTX parse failed for note ${noteId}`, pptxErr);
