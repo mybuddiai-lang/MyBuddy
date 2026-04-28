@@ -145,7 +145,7 @@ export default function NoteDetailPage() {
       };
     });
 
-  const rawPreview = note.content && !note.content.startsWith('[Image upload')
+  const rawPreview = note.content && !note.content.startsWith('[')
     ? note.content
     : null;
 

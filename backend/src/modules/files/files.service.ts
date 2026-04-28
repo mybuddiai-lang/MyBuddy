@@ -185,23 +185,34 @@ export class FilesService implements OnModuleInit {
           this.logger.warn(`PPTX parse failed for note ${noteId}`, pptxErr);
           content = `[PowerPoint file received. Text extraction failed — please try converting to PDF.]`;
         }
+      } else if (mimetype.startsWith('audio/')) {
+        content = `[VOICE_NOTE]`;
       } else {
-        // For images/voice: placeholder — real OCR would use AWS Textract / Google Vision
-        content = `[Image upload: ${noteId}. OCR processing not yet configured.]`;
+        content = `[IMAGE_ONLY]`;
       }
 
-      // Guard: if nothing was extractable, mark DONE with an informative summary so the
-      // user knows the file was received but no text could be read (scanned PDF, etc.)
-      if (!content.trim() || content.trim().length < 20) {
+      // Guard: skip AI when there is no real extractable text.
+      // This catches: truly empty content (<20 chars), the PPTX fallback placeholder
+      // ("[PowerPoint file received...]"), voice notes, and image-only uploads.
+      // Previously these all slipped past the length check and the AI was called with
+      // placeholder text, causing it to generate confusing "OCR not configured" summaries.
+      const isPlaceholder = content.trimStart().startsWith('[');
+      if (!content.trim() || content.trim().length < 20 || isPlaceholder) {
+        let overview: string;
+        if (isPlaceholder && content.startsWith('[VOICE_NOTE]')) {
+          overview = 'Voice note saved. Audio transcription in slides is coming soon — for full AI analysis, type or paste your notes as text, or upload a PDF.';
+        } else if (isPlaceholder && content.startsWith('[IMAGE_ONLY]')) {
+          overview = 'Image uploaded. Buddi cannot yet extract text from images. For full AI analysis, upload a PDF or a text file with your notes.';
+        } else if (isPlaceholder && isPptx) {
+          overview = 'PowerPoint file was uploaded but text could not be extracted automatically. Try saving your presentation as a PDF and re-uploading for full AI analysis.';
+        } else {
+          overview = 'No text could be extracted from this file. Try uploading a PDF with selectable text, or paste your notes as a text file.';
+        }
         await this.prisma.note.update({
           where: { id: noteId },
           data: {
             processingStatus: 'DONE',
-            summary: JSON.stringify({
-              overview: 'No text could be extracted from this file. If it is a scanned document, OCR is not yet configured.',
-              topics: [],
-              takeaways: [],
-            }),
+            summary: JSON.stringify({ overview, topics: [], takeaways: [] }),
             content,
             ...(pageCount !== undefined ? { pageCount } : {}),
           },
