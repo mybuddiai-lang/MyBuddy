@@ -165,6 +165,19 @@ export class FilesService implements OnModuleInit {
           this.logger.warn(`PDF parse failed for note ${noteId}, using fallback`, pdfErr);
           content = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\t]/g, ' ').trim();
         }
+      } else if (
+        mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+        mimetype === 'application/vnd.ms-powerpoint'
+      ) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const officeParser = require('officeparser');
+          content = await officeParser.parseOfficeAsync(buffer, { outputErrorToConsole: false });
+          this.logger.log(`PPTX parsed: ${content.length} chars from note ${noteId}`);
+        } catch (pptxErr) {
+          this.logger.warn(`PPTX parse failed for note ${noteId}`, pptxErr);
+          content = `[PowerPoint file received. Text extraction failed — please try converting to PDF.]`;
+        }
       } else {
         // For images/voice: placeholder — real OCR would use AWS Textract / Google Vision
         content = `[Image upload: ${noteId}. OCR processing not yet configured.]`;
@@ -374,6 +387,12 @@ export class FilesService implements OnModuleInit {
 
   private detectFileType(mimetype: string, filename: string): string {
     if (mimetype === 'application/pdf') return 'PDF';
+    if (
+      mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      mimetype === 'application/vnd.ms-powerpoint' ||
+      filename.toLowerCase().endsWith('.pptx') ||
+      filename.toLowerCase().endsWith('.ppt')
+    ) return 'PPTX';
     if (mimetype.startsWith('image/')) return 'IMAGE';
     if (mimetype.startsWith('audio/')) return 'VOICE';
     return 'TEXT';

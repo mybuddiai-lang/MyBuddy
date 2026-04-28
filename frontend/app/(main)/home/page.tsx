@@ -255,7 +255,7 @@ export default function HomePage() {
               )}
               <button
                 onClick={() => dueReminders.slice(0, 5).forEach(r => remove(r.id))}
-                className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition"
+                className="text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition"
                 title="Clear all"
               >
                 Clear all
@@ -290,11 +290,11 @@ export default function HomePage() {
                     <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">{dayLabel}</p>
                   </div>
-                  {/* Delete / cancel button */}
+                  {/* Delete / cancel — danger UX */}
                   <button
                     onClick={() => remove(r.id)}
                     title="Delete reminder"
-                    className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-500 dark:hover:text-red-400 text-zinc-400 dark:text-zinc-500 transition shrink-0"
+                    className="w-7 h-7 rounded-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white hover:border-red-500 transition shrink-0"
                   >
                     <X size={13} />
                   </button>

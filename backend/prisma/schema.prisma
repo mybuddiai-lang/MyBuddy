@@ -32,6 +32,7 @@ enum FileType {
   IMAGE
   VOICE
   TEXT
+  PPTX
 }
 
 enum ProcessingStatus {

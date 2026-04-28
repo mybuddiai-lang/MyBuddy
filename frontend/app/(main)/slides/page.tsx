@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, Image, Mic, Search, ChevronRight, Clock, Trash2, Loader2 } from 'lucide-react';
+import { Upload, FileText, Image, Mic, Search, ChevronRight, Clock, Trash2, Loader2, Presentation } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSlides } from '@/lib/hooks/use-slides';
@@ -20,10 +20,11 @@ function summaryPreview(raw?: string): string | null {
 }
 
 const fileTypeIcon: Record<string, React.ReactNode> = {
-  PDF:   <FileText size={16} className="text-red-500" />,
-  IMAGE: <Image   size={16} className="text-blue-500" />,
-  VOICE: <Mic     size={16} className="text-green-500" />,
-  TEXT:  <FileText size={16} className="text-zinc-500" />,
+  PDF:   <FileText    size={16} className="text-red-500" />,
+  IMAGE: <Image       size={16} className="text-blue-500" />,
+  VOICE: <Mic         size={16} className="text-green-500" />,
+  TEXT:  <FileText    size={16} className="text-zinc-500" />,
+  PPTX:  <Presentation size={16} className="text-orange-500" />,
 };
 
 const masteryColors = ['bg-zinc-200', 'bg-red-300', 'bg-orange-300', 'bg-yellow-300', 'bg-lime-400', 'bg-emerald-400'];
@@ -55,6 +56,8 @@ export default function SlidesPage() {
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'application/vnd.ms-powerpoint': ['.ppt'],
       'image/*': ['.jpg', '.jpeg', '.png', '.webp'],
       'audio/*': ['.mp3', '.m4a', '.wav'],
     },
@@ -97,7 +100,7 @@ export default function SlidesPage() {
             <p className="text-sm font-semibold text-zinc-700">
               {isDragActive ? 'Drop to upload' : 'Upload slides or notes'}
             </p>
-            <p className="text-xs text-zinc-400 mt-0.5">PDFs, images, voice notes · Max 20 MB · Multiple files OK</p>
+            <p className="text-xs text-zinc-400 mt-0.5">PDF, PowerPoint, images, voice notes · Max 20 MB · Multiple files OK</p>
           </div>
         </div>
       </div>
