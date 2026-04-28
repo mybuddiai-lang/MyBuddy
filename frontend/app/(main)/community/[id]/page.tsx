@@ -8,7 +8,9 @@ import {
   ArrowLeft, Send, Heart, Users, Hash, MoreHorizontal, MessageSquare,
   Paperclip, Mic, Image as ImageIcon, FileText, BarChart2, X, Plus, ChevronDown,
   Check, LogOut, UserCog, Clock, Trash2, AlertCircle, RefreshCw, Brain, Trophy, Lock,
+  Presentation,
 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 import { communityApi, CommunityPost, CommunityPostReply, CommunityPoll, CommunityMember, JoinRequest } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useCommunitySocket } from '@/lib/hooks/use-community-socket';
@@ -122,6 +124,30 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// ─── File display helpers ─────────────────────────────────────────────────────
+
+// uploadAttachment keys files as `attachments/{userId}/{uuid}-{sanitized_name}.ext`
+// Strip the UUID prefix so we show the original filename to users.
+function cleanFilename(url: string): string {
+  const raw = url.split('/').pop()?.split('?')[0] || 'File';
+  return raw.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '') || raw;
+}
+
+function fileTypeDisplay(filename: string): {
+  color: string; bg: string; border: string; label: string; icon: React.ReactNode;
+} {
+  const ext = (filename.split('.').pop() ?? '').toLowerCase();
+  if (ext === 'pdf')
+    return { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', label: 'PDF', icon: <FileText size={14} /> };
+  if (ext === 'pptx' || ext === 'ppt')
+    return { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', label: 'PPT', icon: <Presentation size={14} /> };
+  if (ext === 'docx' || ext === 'doc')
+    return { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', label: 'DOC', icon: <FileText size={14} /> };
+  if (ext === 'xlsx' || ext === 'xls')
+    return { color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100', label: 'XLS', icon: <FileText size={14} /> };
+  return { color: 'text-zinc-600', bg: 'bg-zinc-50', border: 'border-zinc-200', label: 'FILE', icon: <Paperclip size={14} /> };
+}
+
 // ─── Image lightbox ───────────────────────────────────────────────────────────
 
 function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
@@ -221,11 +247,20 @@ function AttachmentPreview({ url, previewUrl, type }: {
     return <audio controls src={url} className="mt-2 w-full h-8" />;
   }
 
-  const filename = url.split('/').pop()?.split('?')[0] || 'File';
+  const filename = cleanFilename(url);
+  const { color, bg, border, label, icon } = fileTypeDisplay(filename);
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      className="mt-2 flex items-center gap-2 text-xs text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 rounded-lg px-3 py-2 border border-brand-100 dark:border-brand-800 w-fit">
-      <FileText size={13} /> {filename}
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`mt-2 flex items-center gap-2.5 ${bg} ${border} border rounded-xl px-3 py-2.5 w-fit max-w-[240px] hover:opacity-80 transition`}
+    >
+      <span className={`${color} shrink-0`}>{icon}</span>
+      <div className="min-w-0">
+        <p className={`text-xs font-semibold ${color} truncate max-w-[180px]`}>{filename}</p>
+        <p className={`text-[10px] ${color} opacity-60`}>{label} · tap to open</p>
+      </div>
     </a>
   );
 }
@@ -265,6 +300,24 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
     try { await toggleRecording(); }
     catch { toast.error('Could not access microphone. Please check permissions.'); }
   };
+
+  const handleReplyFileDrop = useCallback((file: File) => {
+    if (isMicActive) return;
+    if (file.size > 25 * 1024 * 1024) { toast.error('File is too large. Max 25 MB.'); return; }
+    setPendingAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+    const type: AttachmentType = file.type.startsWith('image/') ? 'IMAGE' : file.type.startsWith('audio/') ? 'VOICE' : 'FILE';
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+    setPendingAttachment({ file, name: file.name, type, previewUrl, status: 'uploading' });
+    doUpload(file);
+  }, [doUpload, isMicActive]);
+
+  const { getRootProps: getReplyDrop, isDragActive: isDragOverReply } = useDropzone({
+    onDrop: (accepted) => { if (accepted[0]) handleReplyFileDrop(accepted[0]); },
+    noClick: true,
+    noDragEventsBubbling: false,
+    maxSize: 25 * 1024 * 1024,
+    multiple: false,
+  });
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -411,8 +464,16 @@ function ReplyThread({ communityId, postId, userId }: { communityId: string; pos
         />
       )}
 
-      {/* Reply compose */}
-      <div className="flex items-center gap-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition">
+      {/* Reply compose — drag-and-drop enabled */}
+      <div
+        {...getReplyDrop()}
+        className={`relative flex items-center gap-2 bg-white dark:bg-zinc-800 border rounded-xl px-3 py-2 focus-within:border-brand-300 dark:focus-within:border-brand-600 transition ${isDragOverReply ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20' : 'border-zinc-200 dark:border-zinc-700'}`}
+      >
+        {isDragOverReply && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-brand-400 bg-brand-50/90 dark:bg-brand-900/70 pointer-events-none">
+            <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 flex items-center gap-1.5"><Paperclip size={13} /> Drop to attach</span>
+          </div>
+        )}
         {isMicActive ? (
           <div className="flex-1 flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
@@ -1123,6 +1184,25 @@ export default function PodDetailPage() {
     catch { toast.error('Could not access microphone. Please check permissions.'); }
   };
 
+  // Drag-and-drop onto the compose bar — same file handling as the paperclip button
+  const handleComposeFileDrop = useCallback((file: File) => {
+    if (isPostMicActive) return;
+    if (file.size > 25 * 1024 * 1024) { toast.error('File is too large. Max 25 MB.'); return; }
+    setPendingPostAttachment(prev => { if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl); return null; });
+    const type: AttachmentType = file.type.startsWith('image/') ? 'IMAGE' : file.type.startsWith('audio/') ? 'VOICE' : 'FILE';
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+    setPendingPostAttachment({ file, name: file.name, type, previewUrl, status: 'uploading' });
+    doPostUpload(file);
+  }, [doPostUpload, isPostMicActive]);
+
+  const { getRootProps: getComposeDrop, isDragActive: isDragOverCompose } = useDropzone({
+    onDrop: (accepted) => { if (accepted[0]) handleComposeFileDrop(accepted[0]); },
+    noClick: true,          // buttons handle clicks; drag-and-drop only
+    noDragEventsBubbling: false,
+    maxSize: 25 * 1024 * 1024,
+    multiple: false,
+  });
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -1732,7 +1812,19 @@ export default function PodDetailPage() {
 
       {/* Compose bar (posts only) */}
       {activeTab === 'posts' && (
-        <div className="px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 space-y-2">
+        <div
+          {...getComposeDrop()}
+          className={`relative px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 space-y-2 transition-colors ${isDragOverCompose ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}
+        >
+          {/* Drag-over overlay */}
+          {isDragOverCompose && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-t-2xl border-2 border-dashed border-brand-400 bg-brand-50/90 dark:bg-brand-900/60 pointer-events-none">
+              <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
+                <Paperclip size={18} />
+                <span className="text-sm font-semibold">Drop to attach</span>
+              </div>
+            </div>
+          )}
           {/* Pending attachment preview */}
           {pendingPostAttachment && (
             <AttachmentPreviewCard
