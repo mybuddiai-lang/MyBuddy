@@ -42,6 +42,14 @@ export class NotificationsService {
     });
   }
 
+  async delete(id: string, userId: string) {
+    await this.prisma.userNotification.deleteMany({ where: { id, userId } });
+  }
+
+  async deleteAll(userId: string) {
+    await this.prisma.userNotification.deleteMany({ where: { userId } });
+  }
+
   // Runs at midnight every day — delete read notifications older than 7 days
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async cleanupOld() {

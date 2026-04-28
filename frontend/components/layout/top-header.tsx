@@ -36,16 +36,18 @@ export function TopHeader() {
   const { title, showBack, backHref } = getPageTitle(pathname);
   const isHome = pathname === '/home' || pathname === '/chat';
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<'notifications' | 'due-today'>('notifications');
   const unreadCount = useNotificationCount();
-  const { notificationPanelOpen, setNotificationPanelOpen } = useUIStore();
+  const { notificationPanelOpen, notificationPanelTab, setNotificationPanelOpen } = useUIStore();
 
-  // Allow other pages to trigger the panel via UIStore
+  // Allow other pages to trigger the panel (and choose a tab) via UIStore
   useEffect(() => {
     if (notificationPanelOpen) {
+      setPanelTab(notificationPanelTab);
       setPanelOpen(true);
       setNotificationPanelOpen(false);
     }
-  }, [notificationPanelOpen, setNotificationPanelOpen]);
+  }, [notificationPanelOpen, notificationPanelTab, setNotificationPanelOpen]);
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-100 dark:border-zinc-800 safe-area-top">
@@ -82,7 +84,7 @@ export function TopHeader() {
               )}
             </button>
 
-            <NotificationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+            <NotificationPanel open={panelOpen} onClose={() => setPanelOpen(false)} defaultTab={panelTab} />
           </div>
         </div>
       </div>

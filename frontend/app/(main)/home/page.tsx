@@ -26,7 +26,7 @@ const QUOTES = [
 export default function HomePage() {
   const { user, setUser } = useAuthStore();
   const { stats } = useStats();
-  const { dueReminders, complete } = useReminders();
+  const { dueReminders, remove } = useReminders();
 
   const quote = QUOTES[new Date().getDay() % QUOTES.length];
   const daysUntilExam = user?.examDate ? differenceInDays(new Date(user.examDate), new Date()) : null;
@@ -55,7 +55,7 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, [highlightedReminderId, dueReminders]);
 
-  const { examBannerHidden, setExamBannerHidden, setNotificationPanelOpen } = useUIStore();
+  const { examBannerHidden, setExamBannerHidden, openNotificationPanel } = useUIStore();
   const dismissExamBanner = () => setExamBannerHidden(true);
 
   // Inline exam date picker
@@ -236,7 +236,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Due reminders — max 5, rest visible via notification bell */}
+      {/* Due reminders — max 5, rest in notification panel Due Today tab */}
       {dueReminders.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div className="flex items-center justify-between mb-3">
@@ -244,14 +244,23 @@ export default function HomePage() {
               <Bell size={14} className="text-zinc-500 dark:text-zinc-400" />
               <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Due Today</p>
             </div>
-            {dueReminders.length > 5 && (
+            <div className="flex items-center gap-3">
+              {dueReminders.length > 5 && (
+                <button
+                  onClick={() => openNotificationPanel('due-today')}
+                  className="text-xs text-brand-600 dark:text-brand-400 font-medium"
+                >
+                  +{dueReminders.length - 5} more
+                </button>
+              )}
               <button
-                onClick={() => setNotificationPanelOpen(true)}
-                className="text-xs text-brand-600 dark:text-brand-400 font-medium"
+                onClick={() => dueReminders.slice(0, 5).forEach(r => remove(r.id))}
+                className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition"
+                title="Clear all"
               >
-                +{dueReminders.length - 5} more
+                Clear all
               </button>
-            )}
+            </div>
           </div>
           <div className="space-y-2">
             {dueReminders.slice(0, 5).map((r, i) => {
@@ -281,13 +290,13 @@ export default function HomePage() {
                     <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{r.title}</p>
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">{dayLabel}</p>
                   </div>
-                  {/* Dismiss / complete button */}
+                  {/* Delete / cancel button */}
                   <button
-                    onClick={() => complete(r.id)}
-                    title="Mark as done"
-                    className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:text-emerald-600 dark:hover:text-emerald-400 text-zinc-400 dark:text-zinc-500 transition shrink-0"
+                    onClick={() => remove(r.id)}
+                    title="Delete reminder"
+                    className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-500 dark:hover:text-red-400 text-zinc-400 dark:text-zinc-500 transition shrink-0"
                   >
-                    <Check size={13} />
+                    <X size={13} />
                   </button>
                 </motion.div>
               );
