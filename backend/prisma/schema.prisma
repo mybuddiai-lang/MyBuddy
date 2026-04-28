@@ -74,6 +74,30 @@ enum AttachmentType {
   VOICE
 }
 
+enum ExamType {
+  MCQ
+  SHORT_ANSWER
+  MIXED
+}
+
+enum ExamDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ExamSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum TimetableStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
 enum JoinRequestStatus {
   PENDING
   APPROVED
@@ -134,6 +158,8 @@ model User {
   analyticsEvents   AnalyticsEvent[]
   pushSubscriptions PushSubscription[]
   notifications     UserNotification[]
+  examSessions      ExamSession[]
+  timetables        StudyTimetable[]
 
   @@index([email])
   @@index([subscriptionTier])
@@ -549,6 +575,104 @@ model UserNotification {
   @@index([userId, createdAt])
   @@index([userId, read])
   @@map("user_notifications")
+}
+
+// ── Feature #4: AI Exam Simulator ────────────────────────────────────────────
+
+model ExamSession {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String            @db.Uuid
+  title           String
+  examType        ExamType          @default(MCQ)
+  difficulty      ExamDifficulty    @default(MEDIUM)
+  questionCount   Int               @default(10)
+  timeLimitMins   Int?
+  status          ExamSessionStatus @default(IN_PROGRESS)
+  totalScore      Float?
+  maxScore        Float?
+  percentageScore Float?
+  startedAt       DateTime          @default(now())
+  completedAt     DateTime?
+  noteIds         String[]
+  createdAt       DateTime          @default(now())
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions ExamQuestion[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@map("exam_sessions")
+}
+
+model ExamQuestion {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId      String    @db.Uuid
+  questionNumber Int
+  questionText   String
+  questionType   ExamType
+  options        Json?
+  correctAnswer  String
+  userAnswer     String?
+  scoreAwarded   Float?
+  maxScore       Float     @default(1.0)
+  aiFeedback     String?
+  isCorrect      Boolean?
+  createdAt      DateTime  @default(now())
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, questionNumber])
+  @@map("exam_questions")
+}
+
+// ── Feature #5: Smart Study Timetable ────────────────────────────────────────
+
+model StudyTimetable {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @db.Uuid
+  title       String          @default("My Study Plan")
+  examDate    DateTime
+  hoursPerDay Float
+  status      TimetableStatus @default(ACTIVE)
+  noteIds     String[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days TimetableDay[]
+
+  @@index([userId, status])
+  @@map("study_timetables")
+}
+
+model TimetableDay {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  timetableId  String    @db.Uuid
+  dayNumber    Int
+  date         DateTime
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  reminderId   String?   @db.Uuid
+
+  timetable StudyTimetable   @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  slots     TimetableDaySlot[]
+
+  @@index([timetableId, date])
+  @@map("timetable_days")
+}
+
+model TimetableDaySlot {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dayId     String @db.Uuid
+  noteId    String @db.Uuid
+  noteTitle String
+  minutes   Int
+  order     Int
+
+  day TimetableDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId])
+  @@map("timetable_day_slots")
 }
 
 model AuditLog {

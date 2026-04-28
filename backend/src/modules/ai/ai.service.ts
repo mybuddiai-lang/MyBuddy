@@ -257,6 +257,97 @@ JSON:`;
     }
   }
 
+  // ── Feature #4: Exam generation & grading ────────────────────────────────
+
+  async generateExamQuestions(
+    noteContent: string,
+    examType: 'MCQ' | 'SHORT_ANSWER' | 'MIXED',
+    count: number,
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD',
+  ): Promise<Array<{
+    questionNumber: number;
+    questionType: 'MCQ' | 'SHORT_ANSWER';
+    questionText: string;
+    options?: Array<{ label: string; text: string }>;
+    correctAnswer: string;
+  }>> {
+    const difficultyGuide = {
+      EASY: 'Focus on definitions, basic recall, and foundational concepts.',
+      MEDIUM: 'Include application, comparison, and mechanism questions.',
+      HARD: 'Include analysis, critical reasoning, edge cases, and multi-step problems.',
+    }[difficulty];
+
+    const mcqCount = examType === 'SHORT_ANSWER' ? 0 : examType === 'MCQ' ? count : Math.ceil(count / 2);
+    const saCount  = examType === 'MCQ' ? 0 : count - mcqCount;
+
+    const prompt = `You are an academic exam paper generator for a student learning platform.
+
+Generate exactly ${count} exam questions from the following study material.
+Difficulty: ${difficulty} — ${difficultyGuide}
+${mcqCount > 0 ? `- Include ${mcqCount} MCQ questions (4 options: A, B, C, D). correctAnswer must be the letter only.` : ''}
+${saCount > 0 ? `- Include ${saCount} SHORT_ANSWER questions. correctAnswer must be a model answer of 2–4 sentences.` : ''}
+
+Study material:
+${noteContent.slice(0, 10000)}
+
+Return ONLY a valid JSON array (no markdown, no explanation):
+[
+  {
+    "questionNumber": 1,
+    "questionType": "MCQ",
+    "questionText": "...",
+    "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+    "correctAnswer": "A"
+  },
+  {
+    "questionNumber": 2,
+    "questionType": "SHORT_ANSWER",
+    "questionText": "...",
+    "correctAnswer": "Model answer here..."
+  }
+]
+JSON:`;
+    try {
+      const result = await this.openai.scan(prompt, 2000);
+      const match = result.match(/\[[\s\S]*\]/);
+      if (!match) return [];
+      const items = JSON.parse(match[0]);
+      if (!Array.isArray(items)) return [];
+      return items.filter((q: any) => q.questionNumber && q.questionText && q.correctAnswer);
+    } catch (err) {
+      this.logger.error('generateExamQuestions failed', err);
+      return [];
+    }
+  }
+
+  async gradeShortAnswers(
+    questions: Array<{ questionNumber: number; questionText: string; correctAnswer: string; userAnswer: string }>,
+  ): Promise<Array<{ questionNumber: number; scoreAwarded: number; isCorrect: boolean; aiFeedback: string }>> {
+    // Batch in groups of 5 to avoid token limits
+    const BATCH = 5;
+    const results: any[] = [];
+    for (let i = 0; i < questions.length; i += BATCH) {
+      const batch = questions.slice(i, i + BATCH);
+      const prompt = `You are grading short-answer exam responses from a student.
+
+For each question, award a score between 0.0 and 1.0 and give 1-2 sentences of feedback.
+0.0 = completely wrong, 0.5 = partially correct, 1.0 = fully correct.
+
+Questions:
+${JSON.stringify(batch)}
+
+Return ONLY a valid JSON array:
+[{"questionNumber":1,"scoreAwarded":0.8,"isCorrect":false,"aiFeedback":"Good, but missed X."}]
+JSON:`;
+      try {
+        const result = await this.openai.scan(prompt, 800);
+        const match = result.match(/\[[\s\S]*\]/);
+        if (match) results.push(...JSON.parse(match[0]));
+      } catch { /* partial failure — continue */ }
+    }
+    return results;
+  }
+
   async transcribeAudio(file: Express.Multer.File): Promise<string> {
     return this.openai.transcribe(file.buffer, file.mimetype, file.originalname);
   }

@@ -20,6 +20,8 @@ import { RedisModule } from './modules/cache/redis.module';
 import { EmailModule } from './modules/email/email.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ExamModule } from './modules/exam/exam.module';
+import { TimetableModule } from './modules/timetable/timetable.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { AdminModule } from './modules/admin/admin.module';
     EmailModule,
     LeaderboardModule,
     AdminModule,
+    ExamModule,
+    TimetableModule,
   ],
 })
 export class AppModule {}

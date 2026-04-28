@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, Zap, X, CalendarDays, Check } from 'lucide-react';
+import { MessageCircle, BookOpen, Brain, Flame, Target, TrendingUp, Bell, Clock, Zap, X, CalendarDays, Check, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { useUIStore } from '@/lib/store/ui.store';
 import { useStats } from '@/lib/hooks/use-stats';
@@ -312,8 +312,10 @@ export default function HomePage() {
           {[
             { href: '/chat', icon: MessageCircle, title: 'Chat with Buddi', desc: 'Talk, ask, vent', color: 'from-brand-50 to-brand-100 dark:from-brand-900/30 dark:to-brand-900/50', iconColor: 'text-brand-600 dark:text-brand-400' },
             { href: '/recall', icon: Brain, title: 'Quick Recall', desc: `${stats.dueReminders || 2} cards waiting`, color: 'from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/50', iconColor: 'text-violet-600 dark:text-violet-400' },
+            { href: '/exam', icon: GraduationCap, title: 'AI Exam', desc: 'Test your knowledge', color: 'from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-900/50', iconColor: 'text-amber-600 dark:text-amber-400' },
+            { href: '/timetable', icon: CalendarDays, title: 'Study Plan', desc: 'Your schedule', color: 'from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-900/50', iconColor: 'text-emerald-600 dark:text-emerald-400' },
             { href: '/slides', icon: BookOpen, title: 'Upload Notes', desc: 'Add new material', color: 'from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-800/80', iconColor: 'text-zinc-600 dark:text-zinc-400' },
-            { href: '/community', icon: Clock, title: 'Study Pods', desc: 'Join your group', color: 'from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-900/50', iconColor: 'text-emerald-600 dark:text-emerald-400' },
+            { href: '/community', icon: Clock, title: 'Study Pods', desc: 'Join your group', color: 'from-sky-50 to-sky-100 dark:from-sky-900/30 dark:to-sky-900/50', iconColor: 'text-sky-600 dark:text-sky-400' },
           ].map(({ href, icon: Icon, title, desc, color, iconColor }, i) => (
             <motion.div
               key={href}
