@@ -181,6 +181,14 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 //   2. On error, switch to remote url (R2 CDN)
 //   3. If remote also fails → show "unavailable" chip
 
+// Encode any unsafe characters (e.g. spaces from unsanitized filenames) so the
+// URL works as an href/src. Only applied to absolute URLs — relative paths are
+// left as-is since they are already broken and encoding won't help.
+function safeHref(rawUrl: string): string {
+  if (!rawUrl || !rawUrl.startsWith('http')) return rawUrl;
+  try { return encodeURI(decodeURI(rawUrl)); } catch { return rawUrl; }
+}
+
 function AttachmentPreview({ url, previewUrl, type }: {
   url: string;
   previewUrl?: string;
@@ -193,7 +201,9 @@ function AttachmentPreview({ url, previewUrl, type }: {
 
   if (!url && !previewUrl) return null;
 
-  const imgSrc = (!useFallback && previewUrl) ? previewUrl : url;
+  // Encode the remote URL once; previewUrl is a blob and must not be encoded.
+  const safeUrl = safeHref(url);
+  const imgSrc = (!useFallback && previewUrl) ? previewUrl : safeUrl;
 
   if (type === 'IMAGE' && !imgError) {
     return (
@@ -230,7 +240,7 @@ function AttachmentPreview({ url, previewUrl, type }: {
             )}
           </div>
         </button>
-        {lightbox && <ImageLightbox src={url} onClose={() => setLightbox(false)} />}
+        {lightbox && <ImageLightbox src={safeUrl} onClose={() => setLightbox(false)} />}
       </>
     );
   }
@@ -244,14 +254,14 @@ function AttachmentPreview({ url, previewUrl, type }: {
   }
 
   if (type === 'VOICE') {
-    return <audio controls src={url} className="mt-2 w-full h-8" />;
+    return <audio controls src={safeUrl} className="mt-2 w-full h-8" />;
   }
 
   const filename = cleanFilename(url);
   const { color, bg, border, label, icon } = fileTypeDisplay(filename);
   return (
     <a
-      href={url}
+      href={safeUrl}
       target="_blank"
       rel="noopener noreferrer"
       className={`mt-2 flex items-center gap-2.5 ${bg} ${border} border rounded-xl px-3 py-2.5 w-fit max-w-[240px] hover:opacity-80 transition`}
