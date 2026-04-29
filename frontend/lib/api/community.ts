@@ -144,27 +144,29 @@ export const communityApi = {
   deleteReply: (communityId: string, postId: string, replyId: string) =>
     apiClient.delete(`/community/${communityId}/posts/${postId}/replies/${replyId}`),
 
-  // Same flow as chat: browser POSTs multipart directly to Railway /files/upload-attachment.
-  // Railway uses FetchHttpHandler (Node.js fetch, not OpenSSL) to put the buffer to R2.
-  // This is the only path that reliably works — uploadToR2 pre-signed PUT fails in practice.
+  // Uses the exact same upload mechanism as slides (/files/upload via directUpload pattern).
+  // Browser POSTs multipart form-data directly to Railway, bypassing the Vercel proxy.
+  // Returns { url, type } extracted from the Note the backend creates.
   uploadAttachment: async (file: File): Promise<{ url: string; type: 'IMAGE' | 'FILE' | 'VOICE' }> => {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const token = typeof window !== 'undefined' ? localStorage.getItem('buddi_access_token') : null;
-    if (!token) throw new Error('Not authenticated');
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${backendUrl}/files/upload-attachment`, {
+    form.append('title', file.name.replace(/\.[^/.]+$/, ''));
+    const res = await fetch(`${backendUrl}/files/upload`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error((err as any).message || `Upload failed (${res.status})`);
+      throw Object.assign(new Error(err.message || 'Upload failed'), { response: { status: res.status, data: err } });
     }
     const json = await res.json();
-    const data = json.data ?? json;
-    return { url: data.url, type: data.type ?? 'FILE' };
+    const note = json.data ?? json;
+    const ft: string = note.fileType ?? '';
+    const type: 'IMAGE' | 'FILE' | 'VOICE' = ft === 'IMAGE' ? 'IMAGE' : ft === 'VOICE' ? 'VOICE' : 'FILE';
+    return { url: note.fileUrl, type };
   },
 
   // Polls & Quizzes
