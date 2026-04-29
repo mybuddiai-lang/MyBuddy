@@ -51,7 +51,17 @@ export class FilesService implements OnModuleInit {
   // Direct multipart upload for slides: browser POSTs the file to Railway,
   // Railway uploads the buffer to R2, creates a Note, and triggers AI processing.
   async upload(userId: string, file: Express.Multer.File, title?: string) {
-    const key = `uploads/${userId}/${uuidv4()}-${file.originalname}`;
+    // Sanitize filename so the S3 key (and the derived public URL) never contains
+    // spaces or special characters that make the URL invalid.
+    // Mirrors the same logic used by uploadAttachment() so community attachment
+    // URLs are always safe to use directly as <a href> or <img src>.
+    const ext = (file.originalname.split('.').pop() ?? 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = file.originalname
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60);
+    const key = `uploads/${userId}/${uuidv4()}-${base}.${ext}`;
     const fileType = this.detectFileType(file.mimetype, file.originalname);
 
     let fileUrl = '';
@@ -64,8 +74,8 @@ export class FilesService implements OnModuleInit {
       }));
       fileUrl = `${this.publicUrl.replace(/\/+$/, '')}/${key}`;
     } catch (err) {
-      this.logger.warn('R2 upload failed, storing locally', err);
-      fileUrl = `/uploads/${file.originalname}`;
+      this.logger.error('R2 upload failed', err instanceof Error ? err.stack : String(err));
+      fileUrl = `/uploads/${base}.${ext}`;
     }
 
     const note = await this.prisma.note.create({

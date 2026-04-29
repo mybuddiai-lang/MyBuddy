@@ -164,6 +164,12 @@ export const communityApi = {
     }
     const json = await res.json();
     const note = json.data ?? json;
+    // A relative fileUrl (starts with '/') means R2 silently failed and the
+    // backend stored a local server path that doesn't exist — return a clear
+    // error instead of saving a broken URL in the community post.
+    if (!note.fileUrl || !note.fileUrl.startsWith('http')) {
+      throw new Error('File uploaded but could not be stored. Please try again.');
+    }
     const ft: string = note.fileType ?? '';
     const type: 'IMAGE' | 'FILE' | 'VOICE' = ft === 'IMAGE' ? 'IMAGE' : ft === 'VOICE' ? 'VOICE' : 'FILE';
     return { url: note.fileUrl, type };
